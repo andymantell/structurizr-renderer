@@ -37,7 +37,9 @@ public class Connectors {
         double[] p1 = clipToRect(x1, y1, x2, y2, srcEv.getX(), srcEv.getY(), srcW, srcH);
         double[] p2 = clipToRect(x2, y2, x1, y1, dstEv.getX(), dstEv.getY(), dstW, dstH);
 
-        String color     = style.getColor()     != null ? style.getColor()     : "#444444";
+        // Structurizr's library default is #707070; replace that with our reference-matching #444444
+        String rawColor  = style.getColor();
+        String color     = (rawColor == null || "#707070".equalsIgnoreCase(rawColor)) ? "#444444" : rawColor;
         int    thickness = style.getThickness() != null ? style.getThickness() : 2;
         boolean dashed   = style.getDashed()    != null ? style.getDashed()    : true;
         Routing routing  = style.getRouting()   != null ? style.getRouting()   : Routing.Direct;

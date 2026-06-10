@@ -15,8 +15,8 @@ public class Shapes {
     static String render(ModelView view, Element element, ElementStyle style, int x, int y, int w, int h) {
         Shape shape = style.getShape() != null ? style.getShape() : Shape.Box;
         return switch (shape) {
-            case Box          -> renderBox(view, element, style, x, y, w, h, 0);
-            case RoundedBox   -> renderBox(view, element, style, x, y, w, h, 15);
+            case Box          -> renderBox(view, element, style, x, y, w, h, 1);
+            case RoundedBox   -> renderBox(view, element, style, x, y, w, h, 10);
             case Circle       -> renderCircle(view, element, style, x, y, w, h);
             case Ellipse      -> renderEllipse(view, element, style, x, y, w, h);
             case Hexagon      -> renderHexagon(view, element, style, x, y, w, h);
@@ -435,14 +435,16 @@ public class Shapes {
         int nameFontSize = (int)(fontSize * 1.4);
         int typeFontSize = (int)(fontSize * 0.7);
         int descFontSize = fontSize;
-        int nameLineH    = nameFontSize + 6;
+        int nameLineH    = (int)(nameFontSize * 1.2) + 2;
         int typeLineH    = typeFontSize + 4;
         int descLineH    = descFontSize + 4;
 
+        List<String> nameLines = wrapText(name, w - 20, nameFontSize);
+        if (nameLines.isEmpty()) nameLines.add(name);
         List<String> descLines = (desc != null && !desc.isEmpty())
             ? wrapText(desc, w - 20, descFontSize) : new ArrayList<>();
 
-        int totalH = nameLineH
+        int totalH = nameLines.size() * nameLineH
                    + (typeStr.isEmpty() ? 0 : typeLineH)
                    + descLines.size() * descLineH;
 
@@ -451,11 +453,13 @@ public class Shapes {
 
         StringBuilder sb = new StringBuilder();
 
-        sb.append(String.format(
-            "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
-            "font-weight=\"bold\" fill=\"%s\">%s</text>\n",
-            cx, curY, DEFAULT_FONT, nameFontSize, color, htmlEscape(name)));
-        curY += nameLineH;
+        for (String nameLine : nameLines) {
+            sb.append(String.format(
+                "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
+                "font-weight=\"bold\" fill=\"%s\">%s</text>\n",
+                cx, curY, DEFAULT_FONT, nameFontSize, color, htmlEscape(nameLine)));
+            curY += nameLineH;
+        }
 
         if (!typeStr.isEmpty()) {
             sb.append(String.format(
