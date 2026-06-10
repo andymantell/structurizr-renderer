@@ -1,0 +1,138 @@
+package com.structurizr.renderer.svg;
+
+import com.structurizr.model.Relationship;
+import com.structurizr.view.*;
+
+public class Connectors {
+
+    static final String DEFS_BLOCK =
+        "<defs>" +
+        "<marker id=\"arrow\" markerWidth=\"10\" markerHeight=\"7\" refX=\"9\" refY=\"3.5\" orient=\"auto\" fill=\"#707070\">" +
+        "<polygon points=\"0 0, 10 3.5, 0 7\"/>" +
+        "</marker>" +
+        "</defs>\n";
+
+    static String render(RelationshipView rv, ElementView srcEv, ElementView dstEv,
+                         RelationshipStyle style, ModelView view) {
+        Relationship rel = rv.getRelationship();
+
+        // Look up actual element dimensions from styles
+        ElementStyle srcStyle = view.getViewSet().getConfiguration().getStyles().findElementStyle(srcEv.getElement());
+        ElementStyle dstStyle = view.getViewSet().getConfiguration().getStyles().findElementStyle(dstEv.getElement());
+
+        int srcW = srcStyle.getWidth() != null ? srcStyle.getWidth() : 450;
+        int srcH = srcStyle.getHeight() != null ? srcStyle.getHeight() : 300;
+        int dstW = dstStyle.getWidth() != null ? dstStyle.getWidth() : 450;
+        int dstH = dstStyle.getHeight() != null ? dstStyle.getHeight() : 300;
+
+        double x1 = srcEv.getX() + srcW / 2.0;
+        double y1 = srcEv.getY() + srcH / 2.0;
+        double x2 = dstEv.getX() + dstW / 2.0;
+        double y2 = dstEv.getY() + dstH / 2.0;
+
+        double[] p1 = clipToRect(x1, y1, x2, y2, srcEv.getX(), srcEv.getY(), srcW, srcH);
+        double[] p2 = clipToRect(x2, y2, x1, y1, dstEv.getX(), dstEv.getY(), dstW, dstH);
+
+        String color     = style.getColor()     != null ? style.getColor()     : "#707070";
+        int    thickness = style.getThickness() != null ? style.getThickness() : 2;
+        boolean dashed   = style.getDashed()    != null ? style.getDashed()    : true;
+        Routing routing  = style.getRouting()   != null ? style.getRouting()   : Routing.Direct;
+        int position     = style.getPosition()  != null ? style.getPosition()  : 50;
+        int fontSize     = style.getFontSize()  != null ? style.getFontSize()  : 24;
+
+        String dashAttr = dashed ? " stroke-dasharray=\"8,4\"" : "";
+
+        String pathD;
+        double labelX, labelY;
+
+        if (routing == Routing.Curved) {
+            double midX = (p1[0] + p2[0]) / 2;
+            double midY = (p1[1] + p2[1]) / 2;
+            double dx = p2[0] - p1[0];
+            double dy = p2[1] - p1[1];
+            double cpX = midX - dy * 0.2;
+            double cpY = midY + dx * 0.2;
+            pathD  = String.format("M %.1f %.1f Q %.1f %.1f %.1f %.1f", p1[0], p1[1], cpX, cpY, p2[0], p2[1]);
+            labelX = cpX;
+            labelY = cpY - 6;
+        } else {
+            pathD  = String.format("M %.1f %.1f L %.1f %.1f", p1[0], p1[1], p2[0], p2[1]);
+            double t = position / 100.0;
+            labelX = p1[0] + t * (p2[0] - p1[0]);
+            labelY = p1[1] + t * (p2[1] - p1[1]) - 6;
+        }
+
+        StringBuilder sb = new StringBuilder();
+
+        // Dynamic arrow: draw path, then redraw just for the marker in the correct color
+        sb.append(String.format(
+            "<g>\n<path d=\"%s\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"%s/>\n",
+            pathD, color, thickness, dashAttr
+        ));
+        // Arrowhead as a separate short segment at the end so we can color it
+        sb.append(String.format(
+            "<path d=\"M %.1f %.1f L %.1f %.1f\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"" +
+            " marker-end=\"url(#arrow)\"/>\n",
+            p1[0], p1[1], p2[0], p2[1], color, thickness
+        ));
+
+        String description = rel.getDescription();
+        if (description != null && !description.isEmpty()) {
+            sb.append(String.format(
+                "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
+                labelX, labelY, Shapes.DEFAULT_FONT, fontSize, color,
+                Shapes.htmlEscape(description)
+            ));
+        }
+
+        String technology = rel.getTechnology();
+        if (technology != null && !technology.isEmpty()) {
+            double techY = labelY + (description != null && !description.isEmpty() ? fontSize : 0) + (int)(fontSize * 0.85);
+            sb.append(String.format(
+                "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" font-style=\"italic\" fill=\"%s\">[%s]</text>\n",
+                labelX, techY, Shapes.DEFAULT_FONT, (int)(fontSize * 0.75), color,
+                Shapes.htmlEscape(technology)
+            ));
+        }
+
+        sb.append("</g>\n");
+        return sb.toString();
+    }
+
+    private static double[] clipToRect(double x1, double y1, double x2, double y2,
+                                        int rx, int ry, int rw, int rh) {
+        double dx = x2 - x1;
+        double dy = y2 - y1;
+        double bestT = Double.MAX_VALUE;
+
+        if (dx != 0) {
+            double t = (rx - x1) / dx;
+            if (t >= 0 && t <= 1) {
+                double y = y1 + t * dy;
+                if (y >= ry && y <= ry + rh) bestT = Math.min(bestT, t);
+            }
+            t = (rx + rw - x1) / dx;
+            if (t >= 0 && t <= 1) {
+                double y = y1 + t * dy;
+                if (y >= ry && y <= ry + rh) bestT = Math.min(bestT, t);
+            }
+        }
+        if (dy != 0) {
+            double t = (ry - y1) / dy;
+            if (t >= 0 && t <= 1) {
+                double x = x1 + t * dx;
+                if (x >= rx && x <= rx + rw) bestT = Math.min(bestT, t);
+            }
+            t = (ry + rh - y1) / dy;
+            if (t >= 0 && t <= 1) {
+                double x = x1 + t * dx;
+                if (x >= rx && x <= rx + rw) bestT = Math.min(bestT, t);
+            }
+        }
+
+        if (bestT < Double.MAX_VALUE) {
+            return new double[]{x1 + bestT * dx, y1 + bestT * dy};
+        }
+        return new double[]{x1, y1};
+    }
+}
