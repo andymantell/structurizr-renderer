@@ -93,33 +93,39 @@ public class Connectors {
         boolean hasTech    = technology  != null && !technology.isEmpty();
 
         if (hasDesc || hasTech) {
-            // Estimate label block height for white background rect
-            int descH = hasDesc ? fontSize : 0;
-            int techH = hasTech ? (int)(fontSize * 0.75) + 4 : 0;
-            int totalLabelH = descH + techH + 8;
-            int estWidth = 120;
+            int techFontSize = (int)(fontSize * 0.75);
+            int descLineH    = (int)(fontSize  * 1.2);
+            int techLineH    = (int)(techFontSize * 1.2);
+            // Wrap at ~8x font-size width (roughly matches reference proportions)
+            int maxLabelWidth = fontSize * 8;
 
+            List<String> descLines = hasDesc
+                ? Shapes.wrapText(description, maxLabelWidth, fontSize) : new ArrayList<>();
+            List<String> techLines = hasTech
+                ? Shapes.wrapText("[" + technology + "]", maxLabelWidth, techFontSize) : new ArrayList<>();
+
+            int totalH = descLines.size() * descLineH + techLines.size() * techLineH + 8;
+            int rectW  = maxLabelWidth + 12;
+
+            // Background rect, centered horizontally on label midpoint
             sb.append(String.format(
                 "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"3\" fill=\"#ffffff\"/>\n",
-                labelX - estWidth / 2.0, labelY - fontSize - 2, estWidth, totalLabelH
+                labelX - rectW / 2.0, labelY - totalH / 2.0, rectW, totalH
             ));
-        }
 
-        if (hasDesc) {
-            sb.append(String.format(
-                "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
-                labelX, labelY, Shapes.DEFAULT_FONT, fontSize, color,
-                Shapes.htmlEscape(description)
-            ));
-        }
-
-        if (hasTech) {
-            double techY = labelY + (hasDesc ? fontSize : 0) + (int)(fontSize * 0.85);
-            sb.append(String.format(
-                "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" font-style=\"italic\" fill=\"%s\">[%s]</text>\n",
-                labelX, techY, Shapes.DEFAULT_FONT, (int)(fontSize * 0.75), color,
-                Shapes.htmlEscape(technology)
-            ));
+            double textY = labelY - totalH / 2.0 + descLineH;
+            for (String line : descLines) {
+                sb.append(String.format(
+                    "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
+                    labelX, textY, Shapes.DEFAULT_FONT, fontSize, color, Shapes.htmlEscape(line)));
+                textY += descLineH;
+            }
+            for (String line : techLines) {
+                sb.append(String.format(
+                    "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" font-style=\"italic\" fill=\"%s\">%s</text>\n",
+                    labelX, textY, Shapes.DEFAULT_FONT, techFontSize, color, Shapes.htmlEscape(line)));
+                textY += techLineH;
+            }
         }
 
         sb.append("</g>\n");
