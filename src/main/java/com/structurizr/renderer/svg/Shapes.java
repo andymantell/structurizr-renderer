@@ -551,7 +551,7 @@ public class Shapes {
     static List<String> wrapText(String text, int maxWidth, int fontSize) {
         List<String> lines = new ArrayList<>();
         if (text == null || text.isEmpty()) return lines;
-        double charWidth = fontSize * 0.6;
+        double charWidth = fontSize * 0.55;
         int charsPerLine = Math.max(1, (int)(maxWidth / charWidth));
         String[] words = text.split("\\s+");
         StringBuilder line = new StringBuilder();
