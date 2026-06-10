@@ -46,10 +46,6 @@ public class Shapes {
 
         StringBuilder sb = new StringBuilder();
         sb.append(openGroup(element));
-        // Soft shadow
-        sb.append(String.format(
-            "<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"%d\" fill=\"#c8c8c8\" opacity=\"0.5\"/>\n",
-            x + 4, y + 4, w, h, rx));
         // Main rect
         sb.append(String.format(
             "<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
@@ -432,54 +428,55 @@ public class Shapes {
     // -------------------------------------------------------------------------
 
     /**
-     * Renders the type+name+description labels centred in a rectangular area.
+     * Renders the name+[type]+description labels centred in a rectangular area,
+     * matching reference: name bold large, [type] small in brackets, description normal.
      */
     static String renderBoxText(ModelView view, Element element, ElementStyle style,
                                  int x, int y, int w, int h) {
-        int fontSize   = style.getFontSize() != null ? style.getFontSize() : 24;
-        String color   = color(style);
-        String typeStr = typeLabel(view, element);
-        String name    = element.getName();
-        String desc    = element.getDescription();
+        int fontSize     = style.getFontSize() != null ? style.getFontSize() : 24;
+        String color     = color(style);
+        String typeStr   = typeLabel(view, element);
+        String name      = element.getName();
+        String desc      = element.getDescription();
 
-        int lineH = fontSize + 4;
-        int totalLines = (typeStr.isEmpty() ? 0 : 1) + 1;  // type + name
-        List<String> descLines = new ArrayList<>();
-        if (desc != null && !desc.isEmpty()) {
-            int descFontSize = (int)(fontSize * 0.75);
-            descLines = wrapText(desc, w - 20, descFontSize);
-            totalLines += descLines.size();
-        }
+        int nameFontSize = (int)(fontSize * 1.4);
+        int typeFontSize = (int)(fontSize * 0.7);
+        int descFontSize = fontSize;
+        int nameLineH    = nameFontSize + 6;
+        int typeLineH    = typeFontSize + 4;
+        int descLineH    = descFontSize + 4;
 
-        // Centre the text block vertically
-        int totalH = totalLines * lineH + (descLines.isEmpty() ? 0 : 4);
-        int startY = y + (h - totalH) / 2 + lineH;
-        int cx = x + w / 2;
+        List<String> descLines = (desc != null && !desc.isEmpty())
+            ? wrapText(desc, w - 20, descFontSize) : new ArrayList<>();
+
+        int totalH = nameLineH
+                   + (typeStr.isEmpty() ? 0 : typeLineH)
+                   + descLines.size() * descLineH;
+
+        int curY = y + (h - totalH) / 2 + nameFontSize;
+        int cx   = x + w / 2;
 
         StringBuilder sb = new StringBuilder();
-
-        if (!typeStr.isEmpty()) {
-            sb.append(String.format(
-                "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
-                "font-style=\"italic\" fill=\"%s\">%s</text>\n",
-                cx, startY, DEFAULT_FONT, (int)(fontSize * 0.75), color, htmlEscape(typeStr)));
-            startY += lineH;
-        }
 
         sb.append(String.format(
             "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
             "font-weight=\"bold\" fill=\"%s\">%s</text>\n",
-            cx, startY, DEFAULT_FONT, fontSize, color, htmlEscape(name)));
-        startY += lineH + 4;
+            cx, curY, DEFAULT_FONT, nameFontSize, color, htmlEscape(name)));
+        curY += nameLineH;
 
-        if (!descLines.isEmpty()) {
-            int descFontSize = (int)(fontSize * 0.75);
-            for (String line : descLines) {
-                sb.append(String.format(
-                    "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
-                    cx, startY, DEFAULT_FONT, descFontSize, color, htmlEscape(line)));
-                startY += descFontSize + 4;
-            }
+        if (!typeStr.isEmpty()) {
+            sb.append(String.format(
+                "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
+                "fill=\"%s\">[%s]</text>\n",
+                cx, curY, DEFAULT_FONT, typeFontSize, color, htmlEscape(typeStr)));
+            curY += typeLineH;
+        }
+
+        for (String line : descLines) {
+            sb.append(String.format(
+                "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
+                cx, curY, DEFAULT_FONT, descFontSize, color, htmlEscape(line)));
+            curY += descLineH;
         }
 
         return sb.toString();
@@ -488,35 +485,38 @@ public class Shapes {
     /** Text below the person/robot figure. */
     private static String renderPersonText(ModelView view, Element element, ElementStyle style,
                                             int x, int y, int w, int h) {
-        int fontSize   = style.getFontSize() != null ? style.getFontSize() : 24;
-        String color   = color(style);
-        String typeStr = typeLabel(view, element);
-        String name    = element.getName();
-        String desc    = element.getDescription();
+        int fontSize     = style.getFontSize() != null ? style.getFontSize() : 24;
+        String color     = color(style);
+        String typeStr   = typeLabel(view, element);
+        String name      = element.getName();
+        String desc      = element.getDescription();
 
-        // Place below the figure, using the bottom 30% of the height
+        int nameFontSize = (int)(fontSize * 1.4);
+        int typeFontSize = (int)(fontSize * 0.7);
+        int descFontSize = fontSize;
+
+        // Place below the figure (bottom ~30% of height)
         int textAreaY = y + (int)(h * 0.72);
         int cx = x + w / 2;
-        int cur = textAreaY + fontSize;
+        int cur = textAreaY + nameFontSize;
 
         StringBuilder sb = new StringBuilder();
-
-        if (!typeStr.isEmpty()) {
-            sb.append(String.format(
-                "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
-                "font-style=\"italic\" fill=\"%s\">%s</text>\n",
-                cx, cur, DEFAULT_FONT, (int)(fontSize * 0.75), color, htmlEscape(typeStr)));
-            cur += fontSize;
-        }
 
         sb.append(String.format(
             "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
             "font-weight=\"bold\" fill=\"%s\">%s</text>\n",
-            cx, cur, DEFAULT_FONT, fontSize, color, htmlEscape(name)));
-        cur += fontSize + 4;
+            cx, cur, DEFAULT_FONT, nameFontSize, color, htmlEscape(name)));
+        cur += nameFontSize + 6;
+
+        if (!typeStr.isEmpty()) {
+            sb.append(String.format(
+                "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
+                "fill=\"%s\">[%s]</text>\n",
+                cx, cur, DEFAULT_FONT, typeFontSize, color, htmlEscape(typeStr)));
+            cur += typeFontSize + 4;
+        }
 
         if (desc != null && !desc.isEmpty()) {
-            int descFontSize = (int)(fontSize * 0.75);
             for (String line : wrapText(desc, w - 10, descFontSize)) {
                 sb.append(String.format(
                     "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
