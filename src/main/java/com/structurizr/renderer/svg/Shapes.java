@@ -56,7 +56,7 @@ public class Shapes {
     }
 
     // -------------------------------------------------------------------------
-    // Person
+    // Person — matches reference: large rounded-rect body, head circle, leg lines, text in body
     // -------------------------------------------------------------------------
     private static String renderPerson(ModelView view, Element element, ElementStyle style,
                                         int x, int y, int w, int h) {
@@ -64,38 +64,31 @@ public class Shapes {
         String stroke = stroke(style, bg);
         int    sw     = strokeWidth(style);
 
-        // Geometry from structurizr-diagram.js
-        double headR  = w / 4.5;
-        double headCx = x + w / 2.0;
-        double headCy = y + headR;
-
-        double bodyW = w * 0.7;
-        double bodyH = h * 0.3;
-        double bodyX = x + (w - bodyW) / 2.0;
-        double bodyY = y + h / 2.5;
-
-        double legTopY  = bodyY + bodyH;
-        double legBotY  = y + h * 0.9;
-        double legTopLX = bodyX + bodyW * 0.25;
-        double legTopRX = bodyX + bodyW * 0.75;
-
-        double armY  = bodyY + bodyH * 0.3;
+        double headR   = w / 4.5;
+        double headCx  = x + w / 2.0;
+        double headCy  = y + headR;
+        // Body starts where head circle center + 0.8r (slight overlap with head)
+        double bodyTop = headCy + headR * 0.8;
+        double bodyH   = (y + h) - bodyTop;
+        double bodyRx  = Math.min(70, w * 0.175);
+        // Leg lines: from 2/3 down body to element bottom
+        double legStartY = bodyTop + bodyH * (2.0 / 3.0);
 
         StringBuilder sb = new StringBuilder();
         sb.append(openGroup(element));
+        // Head
         sb.append(String.format("<circle cx=\"%.1f\" cy=\"%.1f\" r=\"%.1f\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             headCx, headCy, headR, bg, stroke, sw));
-        sb.append(String.format("<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            bodyX, bodyY, bodyW, bodyH, bg, stroke, sw));
+        // Body
+        sb.append(String.format("<rect x=\"%d\" y=\"%.1f\" width=\"%d\" height=\"%.1f\" rx=\"%.1f\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
+            x, bodyTop, w, bodyH, bodyRx, bg, stroke, sw));
+        // Legs (two vertical lines at 20%/80% x, overlaid on lower body)
         sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            legTopLX, legTopY, x + w * 0.2, legBotY, stroke, sw));
+            x + w * 0.2, legStartY, x + w * 0.2, (double)(y + h), stroke, sw));
         sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            legTopRX, legTopY, x + w * 0.8, legBotY, stroke, sw));
-        sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            (double) x, armY, bodyX, armY, stroke, sw));
-        sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            bodyX + bodyW, armY, (double)(x + w), armY, stroke, sw));
-        sb.append(renderPersonText(view, element, style, x, y, w, h));
+            x + w * 0.8, legStartY, x + w * 0.8, (double)(y + h), stroke, sw));
+        // Text centred in body area
+        sb.append(renderBoxText(view, element, style, x, (int) bodyTop, w, (int) bodyH));
         sb.append("</g>\n");
         return sb.toString();
     }
@@ -156,7 +149,7 @@ public class Shapes {
         sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             bodyX + bodyW * 0.75, legTopY, x + w * 0.8, legBotY, stroke, sw));
 
-        sb.append(renderPersonText(view, element, style, x, y, w, h));
+        sb.append(renderBoxText(view, element, style, x, y, w, h));
         sb.append("</g>\n");
         return sb.toString();
     }
@@ -477,52 +470,6 @@ public class Shapes {
                 "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
                 cx, curY, DEFAULT_FONT, descFontSize, color, htmlEscape(line)));
             curY += descLineH;
-        }
-
-        return sb.toString();
-    }
-
-    /** Text below the person/robot figure. */
-    private static String renderPersonText(ModelView view, Element element, ElementStyle style,
-                                            int x, int y, int w, int h) {
-        int fontSize     = style.getFontSize() != null ? style.getFontSize() : 24;
-        String color     = color(style);
-        String typeStr   = typeLabel(view, element);
-        String name      = element.getName();
-        String desc      = element.getDescription();
-
-        int nameFontSize = (int)(fontSize * 1.4);
-        int typeFontSize = (int)(fontSize * 0.7);
-        int descFontSize = fontSize;
-
-        // Place below the figure (bottom ~30% of height)
-        int textAreaY = y + (int)(h * 0.72);
-        int cx = x + w / 2;
-        int cur = textAreaY + nameFontSize;
-
-        StringBuilder sb = new StringBuilder();
-
-        sb.append(String.format(
-            "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
-            "font-weight=\"bold\" fill=\"%s\">%s</text>\n",
-            cx, cur, DEFAULT_FONT, nameFontSize, color, htmlEscape(name)));
-        cur += nameFontSize + 6;
-
-        if (!typeStr.isEmpty()) {
-            sb.append(String.format(
-                "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
-                "fill=\"%s\">[%s]</text>\n",
-                cx, cur, DEFAULT_FONT, typeFontSize, color, htmlEscape(typeStr)));
-            cur += typeFontSize + 4;
-        }
-
-        if (desc != null && !desc.isEmpty()) {
-            for (String line : wrapText(desc, w - 10, descFontSize)) {
-                sb.append(String.format(
-                    "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
-                    cx, cur, DEFAULT_FONT, descFontSize, color, htmlEscape(line)));
-                cur += descFontSize + 4;
-            }
         }
 
         return sb.toString();
