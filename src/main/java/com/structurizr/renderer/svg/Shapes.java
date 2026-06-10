@@ -82,11 +82,11 @@ public class Shapes {
         // Body
         sb.append(String.format("<rect x=\"%d\" y=\"%.1f\" width=\"%d\" height=\"%.1f\" rx=\"%.1f\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             x, bodyTop, w, bodyH, bodyRx, bg, stroke, sw));
-        // Legs (two vertical lines at 20%/80% x, overlaid on lower body)
-        sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            x + w * 0.2, legStartY, x + w * 0.2, (double)(y + h), stroke, sw));
-        sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            x + w * 0.8, legStartY, x + w * 0.8, (double)(y + h), stroke, sw));
+        // Legs (two vertical lines at 20%/80% x, overlaid on lower body; thin stroke like reference)
+        sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"1\"/>\n",
+            x + w * 0.2, legStartY, x + w * 0.2, (double)(y + h), stroke));
+        sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"1\"/>\n",
+            x + w * 0.8, legStartY, x + w * 0.8, (double)(y + h), stroke));
         // Text centred in body area
         sb.append(renderBoxText(view, element, style, x, (int) bodyTop, w, (int) bodyH));
         sb.append("</g>\n");

@@ -203,17 +203,19 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         int by = minY - BOUNDARY_PADDING;
         int bw = (maxX - minX) + BOUNDARY_PADDING * 2;
         int bh = (maxY - minY) + BOUNDARY_PADDING * 2 + BOUNDARY_LABEL_HEIGHT;
-        int fontSize = 18;
+        // Reference uses ~33.6px (fontSize*1.4 where fontSize=24) for boundary labels
+        int fontSize = 33;
 
+        String dashAttr = dashArray.isEmpty() ? "" : String.format(" stroke-dasharray=\"%s\"", dashArray);
         writer.writeLine(String.format(
-            "<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"6\" " +
-            "fill=\"none\" stroke=\"%s\" stroke-width=\"2\" stroke-dasharray=\"%s\"/>",
-            bx, by, bw, bh, strokeColor, dashArray));
-        // Label at bottom-left, bold (matches reference)
+            "<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"0\" " +
+            "fill=\"none\" stroke=\"%s\" stroke-width=\"2\"%s/>",
+            bx, by, bw, bh, strokeColor, dashAttr));
+        // Label at bottom-left, bold, 15px margin (matches reference placement)
         writer.writeLine(String.format(
             "<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"%d\" " +
             "font-weight=\"bold\" fill=\"%s\">%s</text>",
-            bx + 8, by + bh - 8, Shapes.DEFAULT_FONT, fontSize,
+            bx + 15, by + bh - 15, Shapes.DEFAULT_FONT, fontSize,
             strokeColor, Shapes.htmlEscape(state.label)));
     }
 
