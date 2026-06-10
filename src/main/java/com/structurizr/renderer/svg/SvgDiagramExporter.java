@@ -110,7 +110,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     protected void endEnterpriseBoundary(ModelView view, IndentingWriter writer) {
         if (boundaryStack.isEmpty()) return;
         BoundaryState state = boundaryStack.pop();
-        writeBoundaryRect(view, state, "#888888", "8,4", writer);
+        writeBoundaryRect(view, state, "#888888", "2,4", writer);
     }
 
     @Override
@@ -122,7 +122,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     protected void endGroupBoundary(ModelView view, IndentingWriter writer) {
         if (boundaryStack.isEmpty()) return;
         BoundaryState state = boundaryStack.pop();
-        writeBoundaryRect(view, state, "#dddddd", "8,4", writer);
+        writeBoundaryRect(view, state, "#dddddd", "2,4", writer);
     }
 
     @Override
@@ -193,21 +193,21 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
         if (minX == Integer.MAX_VALUE) return;
 
-        int topPad = BOUNDARY_PADDING + BOUNDARY_LABEL_HEIGHT;
         int bx = minX - BOUNDARY_PADDING;
-        int by = minY - topPad;
+        int by = minY - BOUNDARY_PADDING;
         int bw = (maxX - minX) + BOUNDARY_PADDING * 2;
-        int bh = (maxY - minY) + topPad + BOUNDARY_PADDING;
+        int bh = (maxY - minY) + BOUNDARY_PADDING * 2 + BOUNDARY_LABEL_HEIGHT;
         int fontSize = 18;
 
         writer.writeLine(String.format(
             "<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"6\" " +
             "fill=\"none\" stroke=\"%s\" stroke-width=\"2\" stroke-dasharray=\"%s\"/>",
             bx, by, bw, bh, strokeColor, dashArray));
+        // Label at bottom-left, bold (matches reference)
         writer.writeLine(String.format(
             "<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"%d\" " +
-            "font-style=\"italic\" fill=\"%s\">%s</text>",
-            bx + 8, by + fontSize + 4, Shapes.DEFAULT_FONT, fontSize,
+            "font-weight=\"bold\" fill=\"%s\">%s</text>",
+            bx + 8, by + bh - 8, Shapes.DEFAULT_FONT, fontSize,
             strokeColor, Shapes.htmlEscape(state.label)));
     }
 
