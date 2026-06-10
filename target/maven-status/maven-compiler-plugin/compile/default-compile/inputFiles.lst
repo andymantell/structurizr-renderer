@@ -1,0 +1,11 @@
+/mnt/c/work/structurizr-renderer/src/main/java/com/structurizr/renderer/layout/ElkLayoutStrategy.java
+/mnt/c/work/structurizr-renderer/src/main/java/com/structurizr/renderer/layout/GraphvizLayoutStrategy.java
+/mnt/c/work/structurizr-renderer/src/main/java/com/structurizr/renderer/layout/LayoutStrategy.java
+/mnt/c/work/structurizr-renderer/src/main/java/com/structurizr/renderer/svg/Connectors.java
+/mnt/c/work/structurizr-renderer/src/main/java/com/structurizr/renderer/Main.java
+/mnt/c/work/structurizr-renderer/src/main/java/com/structurizr/renderer/svg/Shapes.java
+/mnt/c/work/structurizr-renderer/src/main/java/com/structurizr/renderer/RenderCommand.java
+/mnt/c/work/structurizr-renderer/src/main/java/com/structurizr/renderer/layout/LayoutStrategyFactory.java
+/mnt/c/work/structurizr-renderer/src/main/java/com/structurizr/renderer/PngRenderer.java
+/mnt/c/work/structurizr-renderer/src/main/java/com/structurizr/renderer/svg/SvgDiagram.java
+/mnt/c/work/structurizr-renderer/src/main/java/com/structurizr/renderer/svg/SvgDiagramExporter.java

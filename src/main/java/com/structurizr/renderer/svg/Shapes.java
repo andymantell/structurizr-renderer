@@ -96,9 +96,9 @@ public class Shapes {
         sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             legTopRX, legTopY, x + w * 0.8, legBotY, stroke, sw));
         sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            x, armY, bodyX, armY, stroke, sw));
+            (double) x, armY, bodyX, armY, stroke, sw));
         sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            bodyX + bodyW, armY, x + w, armY, stroke, sw));
+            bodyX + bodyW, armY, (double)(x + w), armY, stroke, sw));
         sb.append(renderPersonText(view, element, style, x, y, w, h));
         sb.append("</g>\n");
         return sb.toString();
@@ -149,9 +149,9 @@ public class Shapes {
         // Arms
         double armY = bodyY + bodyH * 0.3;
         sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            x, armY, bodyX, armY, stroke, sw));
+            (double) x, armY, bodyX, armY, stroke, sw));
         sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            bodyX + bodyW, armY, x + w, armY, stroke, sw));
+            bodyX + bodyW, armY, (double)(x + w), armY, stroke, sw));
         // Legs
         double legTopY = bodyY + bodyH;
         double legBotY = y + h * 0.9;

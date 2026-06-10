@@ -1,6 +1,7 @@
 package com.structurizr.renderer.layout;
 
 import com.structurizr.Workspace;
+import com.structurizr.model.Element;
 import com.structurizr.view.*;
 import org.eclipse.elk.alg.layered.options.LayeredMetaDataProvider;
 import org.eclipse.elk.alg.layered.options.LayeredOptions;
@@ -9,7 +10,6 @@ import org.eclipse.elk.core.data.LayoutMetaDataService;
 import org.eclipse.elk.core.options.CoreOptions;
 import org.eclipse.elk.core.options.Direction;
 import org.eclipse.elk.core.util.BasicProgressMonitor;
-import org.eclipse.elk.graph.ElkEdge;
 import org.eclipse.elk.graph.ElkNode;
 import org.eclipse.elk.graph.util.ElkGraphUtil;
 
@@ -34,7 +34,7 @@ public class ElkLayoutStrategy implements LayoutStrategy {
     public void applyLayout(Workspace workspace) {
         ensureInitialized();
 
-        Views views = workspace.getViews();
+        ViewSet views = workspace.getViews();
 
         for (CustomView view : views.getCustomViews()) applyToView(view, workspace);
         for (SystemLandscapeView view : views.getSystemLandscapeViews()) applyToView(view, workspace);

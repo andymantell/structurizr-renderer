@@ -30,7 +30,9 @@ class SvgDiagramExporterTest {
 
         Collection<Diagram> diagrams = new SvgDiagramExporter().export(workspace);
 
-        assertEquals(3, diagrams.size(), "Expected SystemContext, Containers, Components");
+        // Official big-bank fixture has 7 views: SystemLandscape, SystemContext,
+        // Containers, Components, SignIn (dynamic), DevelopmentDeployment, LiveDeployment
+        assertEquals(7, diagrams.size(), "Expected 7 views from official big-bank fixture");
 
         Path outDir = Path.of("target/test-output");
         Files.createDirectories(outDir);

@@ -101,6 +101,18 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     // -------------------------------------------------------------------------
 
     @Override
+    protected void startEnterpriseBoundary(ModelView view, String enterpriseName, IndentingWriter writer) {
+        boundaryStack.push(new BoundaryState(enterpriseName, BoundaryType.Enterprise));
+    }
+
+    @Override
+    protected void endEnterpriseBoundary(ModelView view, IndentingWriter writer) {
+        if (boundaryStack.isEmpty()) return;
+        BoundaryState state = boundaryStack.pop();
+        writeBoundaryRect(view, state, "#888888", "8,4", writer);
+    }
+
+    @Override
     protected void startGroupBoundary(ModelView view, String group, IndentingWriter writer) {
         boundaryStack.push(new BoundaryState(group, BoundaryType.Group));
     }
@@ -210,7 +222,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     // Inner types
     // -------------------------------------------------------------------------
 
-    private enum BoundaryType { Group, SoftwareSystem, Container, DeploymentNode }
+    private enum BoundaryType { Enterprise, Group, SoftwareSystem, Container, DeploymentNode }
 
     private static class BoundaryState {
         final String label;
