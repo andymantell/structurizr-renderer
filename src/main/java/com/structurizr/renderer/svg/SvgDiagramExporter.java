@@ -103,73 +103,79 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
     @Override
     protected void startEnterpriseBoundary(ModelView view, String enterpriseName, IndentingWriter writer) {
-        boundaryStack.push(new BoundaryState(enterpriseName, BoundaryType.Enterprise));
+        boundaryStack.push(new BoundaryState(enterpriseName, BoundaryType.Enterprise, "#444444", "2,4"));
     }
 
     @Override
     protected void endEnterpriseBoundary(ModelView view, IndentingWriter writer) {
         if (boundaryStack.isEmpty()) return;
         BoundaryState state = boundaryStack.pop();
-        writeBoundaryRect(view, state, "#888888", "2,4", writer);
+        writeBoundaryRect(view, state, writer);
     }
 
     @Override
     protected void startGroupBoundary(ModelView view, String group, IndentingWriter writer) {
-        boundaryStack.push(new BoundaryState(group, BoundaryType.Group));
+        boundaryStack.push(new BoundaryState(group, BoundaryType.Group, "#444444", "2,4"));
     }
 
     @Override
     protected void endGroupBoundary(ModelView view, IndentingWriter writer) {
         if (boundaryStack.isEmpty()) return;
         BoundaryState state = boundaryStack.pop();
-        writeBoundaryRect(view, state, "#dddddd", "2,4", writer);
+        writeBoundaryRect(view, state, writer);
     }
 
     @Override
     protected void startSoftwareSystemBoundary(ModelView view, SoftwareSystem softwareSystem,
                                                 IndentingWriter writer) {
-        boundaryStack.push(new BoundaryState(softwareSystem.getName(), BoundaryType.SoftwareSystem));
+        ElementStyle style = findElementStyle(view, softwareSystem);
+        String bg = style.getBackground() != null ? style.getBackground() : "#1168bd";
+        String stroke = Shapes.shadeColor(bg, -10);
+        boundaryStack.push(new BoundaryState(softwareSystem.getName(), BoundaryType.SoftwareSystem, stroke, ""));
     }
 
     @Override
     protected void endSoftwareSystemBoundary(ModelView view, IndentingWriter writer) {
         if (boundaryStack.isEmpty()) return;
         BoundaryState state = boundaryStack.pop();
-        writeBoundaryRect(view, state, "#1168bd", "8,4", writer);
+        writeBoundaryRect(view, state, writer);
     }
 
     @Override
     protected void startContainerBoundary(ModelView view, Container container, IndentingWriter writer) {
-        boundaryStack.push(new BoundaryState(container.getName(), BoundaryType.Container));
+        ElementStyle style = findElementStyle(view, container);
+        String bg = style.getBackground() != null ? style.getBackground() : "#438dd5";
+        String stroke = Shapes.shadeColor(bg, -10);
+        boundaryStack.push(new BoundaryState(container.getName(), BoundaryType.Container, stroke, ""));
     }
 
     @Override
     protected void endContainerBoundary(ModelView view, IndentingWriter writer) {
         if (boundaryStack.isEmpty()) return;
         BoundaryState state = boundaryStack.pop();
-        writeBoundaryRect(view, state, "#438dd5", "8,4", writer);
+        writeBoundaryRect(view, state, writer);
     }
 
     @Override
     protected void startDeploymentNodeBoundary(DeploymentView view, DeploymentNode deploymentNode,
                                                IndentingWriter writer) {
-        boundaryStack.push(new BoundaryState(deploymentNode.getName(), BoundaryType.DeploymentNode));
+        boundaryStack.push(new BoundaryState(deploymentNode.getName(), BoundaryType.DeploymentNode, "#444444", ""));
     }
 
     @Override
     protected void endDeploymentNodeBoundary(ModelView view, IndentingWriter writer) {
         if (boundaryStack.isEmpty()) return;
         BoundaryState state = boundaryStack.pop();
-        writeBoundaryRect(view, state, "#999999", "4,4", writer);
+        writeBoundaryRect(view, state, writer);
     }
 
     // -------------------------------------------------------------------------
     // Boundary rect drawing
     // -------------------------------------------------------------------------
 
-    private void writeBoundaryRect(ModelView view, BoundaryState state,
-                                    String strokeColor, String dashArray,
-                                    IndentingWriter writer) {
+    private void writeBoundaryRect(ModelView view, BoundaryState state, IndentingWriter writer) {
+        String strokeColor = state.strokeColor;
+        String dashArray   = state.dashArray;
         if (state.elementIds.isEmpty()) return;
 
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
@@ -229,11 +235,15 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     private static class BoundaryState {
         final String label;
         final BoundaryType type;
+        final String strokeColor;
+        final String dashArray;
         final List<String> elementIds = new ArrayList<>();
 
-        BoundaryState(String label, BoundaryType type) {
-            this.label = label;
-            this.type  = type;
+        BoundaryState(String label, BoundaryType type, String strokeColor, String dashArray) {
+            this.label       = label;
+            this.type        = type;
+            this.strokeColor = strokeColor;
+            this.dashArray   = dashArray;
         }
 
         void addElement(String id) {
