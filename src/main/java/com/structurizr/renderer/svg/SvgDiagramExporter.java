@@ -15,7 +15,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
     private static final int PADDING = 50;
     private static final int BOUNDARY_PADDING = 20;
-    private static final int BOUNDARY_LABEL_HEIGHT = 28; // extra top space for the label
+    private static final int BOUNDARY_LABEL_HEIGHT = 55; // extra bottom space for the 33px bold label + margin
 
     // Per-view state (reset in writeHeader)
     private ModelView currentView;
