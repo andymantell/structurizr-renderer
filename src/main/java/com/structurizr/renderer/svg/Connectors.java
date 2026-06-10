@@ -11,8 +11,9 @@ public class Connectors {
 
     static final String DEFS_BLOCK =
         "<defs>" +
-        "<marker id=\"arrow\" markerWidth=\"10\" markerHeight=\"7\" refX=\"9\" refY=\"3.5\" orient=\"auto\" fill=\"#707070\">" +
-        "<polygon points=\"0 0, 10 3.5, 0 7\"/>" +
+        "<marker id=\"arrow\" markerUnits=\"userSpaceOnUse\" markerWidth=\"20\" markerHeight=\"20\" " +
+        "refX=\"20\" refY=\"0\" orient=\"auto\">" +
+        "<path d=\"M 20 -10 0 0 20 10 Z\" fill=\"#444444\"/>" +
         "</marker>" +
         "</defs>\n";
 
@@ -37,14 +38,14 @@ public class Connectors {
         double[] p1 = clipToRect(x1, y1, x2, y2, srcEv.getX(), srcEv.getY(), srcW, srcH);
         double[] p2 = clipToRect(x2, y2, x1, y1, dstEv.getX(), dstEv.getY(), dstW, dstH);
 
-        String color     = style.getColor()     != null ? style.getColor()     : "#707070";
+        String color     = style.getColor()     != null ? style.getColor()     : "#444444";
         int    thickness = style.getThickness() != null ? style.getThickness() : 2;
         boolean dashed   = style.getDashed()    != null ? style.getDashed()    : true;
         Routing routing  = style.getRouting()   != null ? style.getRouting()   : Routing.Direct;
         int position     = style.getPosition()  != null ? style.getPosition()  : 50;
         int fontSize     = style.getFontSize()  != null ? style.getFontSize()  : 24;
 
-        String dashAttr = dashed ? " stroke-dasharray=\"8,4\"" : "";
+        String dashAttr = dashed ? " stroke-dasharray=\"8 8\"" : "";
 
         Collection<Vertex> routingVertices = rv.getVertices();
         String pathD;
@@ -86,7 +87,24 @@ public class Connectors {
         ));
 
         String description = rel.getDescription();
-        if (description != null && !description.isEmpty()) {
+        String technology  = rel.getTechnology();
+        boolean hasDesc    = description != null && !description.isEmpty();
+        boolean hasTech    = technology  != null && !technology.isEmpty();
+
+        if (hasDesc || hasTech) {
+            // Estimate label block height for white background rect
+            int descH = hasDesc ? fontSize : 0;
+            int techH = hasTech ? (int)(fontSize * 0.75) + 4 : 0;
+            int totalLabelH = descH + techH + 8;
+            int estWidth = 120;
+
+            sb.append(String.format(
+                "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"3\" fill=\"#ffffff\"/>\n",
+                labelX - estWidth / 2.0, labelY - fontSize - 2, estWidth, totalLabelH
+            ));
+        }
+
+        if (hasDesc) {
             sb.append(String.format(
                 "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
                 labelX, labelY, Shapes.DEFAULT_FONT, fontSize, color,
@@ -94,9 +112,8 @@ public class Connectors {
             ));
         }
 
-        String technology = rel.getTechnology();
-        if (technology != null && !technology.isEmpty()) {
-            double techY = labelY + (description != null && !description.isEmpty() ? fontSize : 0) + (int)(fontSize * 0.85);
+        if (hasTech) {
+            double techY = labelY + (hasDesc ? fontSize : 0) + (int)(fontSize * 0.85);
             sb.append(String.format(
                 "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" font-style=\"italic\" fill=\"%s\">[%s]</text>\n",
                 labelX, techY, Shapes.DEFAULT_FONT, (int)(fontSize * 0.75), color,
