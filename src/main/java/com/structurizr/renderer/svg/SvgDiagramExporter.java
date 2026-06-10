@@ -31,16 +31,22 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         this.currentView = view;
         this.boundaryStack = new ArrayDeque<>();
 
-        // Compute canvas from element positions + style dimensions
+        // Compute canvas from element positions + style dimensions,
+        // plus extra space for boundary rects (each nesting level adds padding + label height at bottom).
         int maxX = 0, maxY = 0;
+        int maxNesting = 0;
         for (ElementView ev : view.getElements()) {
             ElementStyle style = findElementStyle(view, ev.getElement());
             int[] dims = ElkLayoutStrategy.defaultDimensions(ev.getElement(), style);
             maxX = Math.max(maxX, ev.getX() + dims[0]);
             maxY = Math.max(maxY, ev.getY() + dims[1]);
+            maxNesting = Math.max(maxNesting, deploymentNestingDepth(ev.getElement()));
         }
-        int cw = maxX + PADDING * 2;
-        int ch = maxY + PADDING * 2;
+        // Each boundary level adds BOUNDARY_PADDING on sides and (BOUNDARY_PADDING + BOUNDARY_LABEL_HEIGHT) at bottom.
+        int boundaryExtra = maxNesting * BOUNDARY_PADDING;
+        int boundaryBottom = maxNesting * (BOUNDARY_PADDING + BOUNDARY_LABEL_HEIGHT);
+        int cw = maxX + PADDING * 2 + boundaryExtra;
+        int ch = maxY + PADDING * 2 + boundaryBottom;
 
         String bg = "#ffffff";
 
@@ -237,6 +243,17 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     @Override
     protected Diagram createDiagram(ModelView view, String definition) {
         return new SvgDiagram(view, definition);
+    }
+
+    /** Count how many DeploymentNode ancestors this element has (0 for non-deployment elements). */
+    private static int deploymentNestingDepth(Element element) {
+        int depth = 0;
+        Element parent = element.getParent();
+        while (parent instanceof DeploymentNode) {
+            depth++;
+            parent = parent.getParent();
+        }
+        return depth;
     }
 
     // -------------------------------------------------------------------------
