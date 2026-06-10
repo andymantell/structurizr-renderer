@@ -15,6 +15,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
     private static final int PADDING = 50;
     private static final int BOUNDARY_PADDING = 20;
+    private static final int BOUNDARY_LABEL_HEIGHT = 28; // extra top space for the label
 
     // Per-view state (reset in writeHeader)
     private ModelView currentView;
@@ -64,9 +65,9 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
     @Override
     protected void writeElement(ModelView view, Element element, IndentingWriter writer) {
-        // Track element for open boundary
-        if (!boundaryStack.isEmpty()) {
-            boundaryStack.peek().addElement(element.getId());
+        // Track element in ALL open boundaries (innermost and all ancestors)
+        for (BoundaryState state : boundaryStack) {
+            state.addElement(element.getId());
         }
 
         ElementView ev = view.getElementView(element);
@@ -192,10 +193,11 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
         if (minX == Integer.MAX_VALUE) return;
 
+        int topPad = BOUNDARY_PADDING + BOUNDARY_LABEL_HEIGHT;
         int bx = minX - BOUNDARY_PADDING;
-        int by = minY - BOUNDARY_PADDING;
+        int by = minY - topPad;
         int bw = (maxX - minX) + BOUNDARY_PADDING * 2;
-        int bh = (maxY - minY) + BOUNDARY_PADDING * 2;
+        int bh = (maxY - minY) + topPad + BOUNDARY_PADDING;
         int fontSize = 18;
 
         writer.writeLine(String.format(

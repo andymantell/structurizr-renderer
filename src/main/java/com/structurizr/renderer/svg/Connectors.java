@@ -3,6 +3,10 @@ package com.structurizr.renderer.svg;
 import com.structurizr.model.Relationship;
 import com.structurizr.view.*;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
 public class Connectors {
 
     static final String DEFS_BLOCK =
@@ -42,10 +46,22 @@ public class Connectors {
 
         String dashAttr = dashed ? " stroke-dasharray=\"8,4\"" : "";
 
+        Collection<Vertex> routingVertices = rv.getVertices();
         String pathD;
         double labelX, labelY;
 
-        if (routing == Routing.Curved) {
+        if (!routingVertices.isEmpty()) {
+            StringBuilder path = new StringBuilder();
+            path.append(String.format("M %.1f %.1f", p1[0], p1[1]));
+            for (Vertex v : routingVertices) {
+                path.append(String.format(" L %d %d", v.getX(), v.getY()));
+            }
+            path.append(String.format(" L %.1f %.1f", p2[0], p2[1]));
+            pathD = path.toString();
+            double[] lp = polylinePointAtFraction(p1, routingVertices, p2, position / 100.0);
+            labelX = lp[0];
+            labelY = lp[1] - 6;
+        } else if (routing == Routing.Curved) {
             double midX = (p1[0] + p2[0]) / 2;
             double midY = (p1[1] + p2[1]) / 2;
             double dx = p2[0] - p1[0];
@@ -64,16 +80,9 @@ public class Connectors {
 
         StringBuilder sb = new StringBuilder();
 
-        // Dynamic arrow: draw path, then redraw just for the marker in the correct color
         sb.append(String.format(
-            "<g>\n<path d=\"%s\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"%s/>\n",
+            "<g>\n<path d=\"%s\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"%s marker-end=\"url(#arrow)\"/>\n",
             pathD, color, thickness, dashAttr
-        ));
-        // Arrowhead as a separate short segment at the end so we can color it
-        sb.append(String.format(
-            "<path d=\"M %.1f %.1f L %.1f %.1f\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"" +
-            " marker-end=\"url(#arrow)\"/>\n",
-            p1[0], p1[1], p2[0], p2[1], color, thickness
         ));
 
         String description = rel.getDescription();
@@ -97,6 +106,35 @@ public class Connectors {
 
         sb.append("</g>\n");
         return sb.toString();
+    }
+
+    private static double[] polylinePointAtFraction(double[] p1, Collection<Vertex> vertices,
+                                                      double[] p2, double fraction) {
+        List<double[]> pts = new ArrayList<>();
+        pts.add(p1);
+        for (Vertex v : vertices) pts.add(new double[]{v.getX(), v.getY()});
+        pts.add(p2);
+
+        double totalLen = 0;
+        for (int i = 0; i < pts.size() - 1; i++) {
+            double dx = pts.get(i + 1)[0] - pts.get(i)[0];
+            double dy = pts.get(i + 1)[1] - pts.get(i)[1];
+            totalLen += Math.sqrt(dx * dx + dy * dy);
+        }
+
+        double target = totalLen * fraction;
+        double cum = 0;
+        for (int i = 0; i < pts.size() - 1; i++) {
+            double dx = pts.get(i + 1)[0] - pts.get(i)[0];
+            double dy = pts.get(i + 1)[1] - pts.get(i)[1];
+            double seg = Math.sqrt(dx * dx + dy * dy);
+            if (cum + seg >= target) {
+                double t = seg > 0 ? (target - cum) / seg : 0;
+                return new double[]{pts.get(i)[0] + t * dx, pts.get(i)[1] + t * dy};
+            }
+            cum += seg;
+        }
+        return pts.get(pts.size() - 1);
     }
 
     private static double[] clipToRect(double x1, double y1, double x2, double y2,

@@ -10,11 +10,13 @@ import org.eclipse.elk.core.data.LayoutMetaDataService;
 import org.eclipse.elk.core.options.CoreOptions;
 import org.eclipse.elk.core.options.Direction;
 import org.eclipse.elk.core.util.BasicProgressMonitor;
+import org.eclipse.elk.graph.ElkBendPoint;
+import org.eclipse.elk.graph.ElkEdge;
+import org.eclipse.elk.graph.ElkEdgeSection;
 import org.eclipse.elk.graph.ElkNode;
 import org.eclipse.elk.graph.util.ElkGraphUtil;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class ElkLayoutStrategy implements LayoutStrategy {
 
@@ -70,19 +72,23 @@ public class ElkLayoutStrategy implements LayoutStrategy {
             nodeMap.put(ev.getId(), node);
         }
 
+        List<RelationshipView> rvList = new ArrayList<>();
+        List<ElkEdge> edgeList = new ArrayList<>();
+
         for (RelationshipView rv : view.getRelationships()) {
             com.structurizr.model.Relationship rel = rv.getRelationship();
             ElkNode src = nodeMap.get(rel.getSourceId());
             ElkNode dst = nodeMap.get(rel.getDestinationId());
             if (src != null && dst != null) {
-                ElkGraphUtil.createSimpleEdge(src, dst);
+                ElkEdge edge = ElkGraphUtil.createSimpleEdge(src, dst);
+                rvList.add(rv);
+                edgeList.add(edge);
             }
         }
 
         new RecursiveGraphLayoutEngine().layout(root, new BasicProgressMonitor());
 
-        // Write positions back to view
-        int i = 0;
+        // Write node positions back to view
         for (ElementView ev : view.getElements()) {
             ElkNode node = nodeMap.get(ev.getId());
             if (node != null) {
@@ -90,13 +96,31 @@ public class ElkLayoutStrategy implements LayoutStrategy {
                 ev.setY((int) node.getY());
             }
         }
+
+        // Use ELK's computed port positions (section start/end) for cleaner connection points.
+        // We deliberately skip bend points — straight diagonal lines look like the official
+        // Structurizr rendering and are far less visually noisy than orthogonal routing.
+        for (int i = 0; i < rvList.size(); i++) {
+            RelationshipView rv = rvList.get(i);
+            ElkEdge edge = edgeList.get(i);
+            if (!edge.getSections().isEmpty()) {
+                ElkEdgeSection section = edge.getSections().get(0);
+                List<Vertex> vertices = new ArrayList<>();
+                vertices.add(new Vertex((int) section.getStartX(), (int) section.getStartY()));
+                vertices.add(new Vertex((int) section.getEndX(), (int) section.getEndY()));
+                rv.setVertices(vertices);
+            }
+        }
     }
 
     private Direction toElkDirection(AutomaticLayout.RankDirection rankDirection) {
         if (rankDirection == null) return Direction.RIGHT;
+        // Note: the 4.1.0 structurizr-dsl JAR defaults to TopBottom for plain "autoLayout"
+        // but the official Structurizr rendering uses left-to-right for that case.
+        // Map TopBottom→RIGHT to match official output; explicit "autoLayout lr" also gets RIGHT.
         return switch (rankDirection) {
-            case TopBottom -> Direction.DOWN;
-            case BottomTop -> Direction.UP;
+            case TopBottom -> Direction.RIGHT;
+            case BottomTop -> Direction.LEFT;
             case LeftRight -> Direction.RIGHT;
             case RightLeft -> Direction.LEFT;
         };

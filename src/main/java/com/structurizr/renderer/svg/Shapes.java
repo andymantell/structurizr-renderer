@@ -174,23 +174,23 @@ public class Shapes {
         String stroke = stroke(style, bg);
         int    sw     = strokeWidth(style);
 
-        int rx   = w / 2;
-        int ry   = Math.min(60, h / 5);
-        int cx   = x + w / 2;
+        int rx    = w / 2;
+        int ry    = Math.min(60, h / 5);
+        int cx    = x + w / 2;
         int topCy = y + ry;
-        int bodyH = h - 2 * ry;
+        int botCy = y + h - ry;
+        int bodyH = botCy - topCy;
 
         StringBuilder sb = new StringBuilder();
         sb.append(openGroup(element));
-        // Body rect (behind ellipses)
-        sb.append(String.format("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            x, topCy, w, bodyH, bg, stroke, sw));
-        // Top ellipse (lighter shade)
-        sb.append(String.format("<ellipse cx=\"%d\" cy=\"%d\" rx=\"%d\" ry=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
+        // Body: left edge down, bottom arc (sweep=0 curves downward in SVG y-down coords), right edge up, closed at top
+        sb.append(String.format(
+            "<path d=\"M %d %d L %d %d A %d %d 0 0 0 %d %d L %d %d Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
+            x, topCy, x, botCy, rx, ry, x + w, botCy, x + w, topCy, bg, stroke, sw));
+        // Top ellipse (lighter shade) drawn on top to give the lid effect
+        sb.append(String.format(
+            "<ellipse cx=\"%d\" cy=\"%d\" rx=\"%d\" ry=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             cx, topCy, rx, ry, shadeColor(bg, 15), stroke, sw));
-        // Bottom arc (lower half only)
-        sb.append(String.format("<path d=\"M %d %d a %d %d 0 0 0 %d 0\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            x, y + h - ry, rx, ry, w, stroke, sw));
         sb.append(renderBoxText(view, element, style, x, topCy, w, bodyH));
         sb.append("</g>\n");
         return sb.toString();
