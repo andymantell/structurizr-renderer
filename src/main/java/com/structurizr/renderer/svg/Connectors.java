@@ -54,16 +54,24 @@ public class Connectors {
         double labelX, labelY;
 
         if (!routingVertices.isEmpty()) {
+            // ELK stores the full edge path: [port_exit, ...bends..., port_entry].
+            // Use those directly as the path — don't re-apply clipToRect, which would
+            // misalign with ELK's horizontal port exits and produce a jog at each end.
+            List<Vertex> vList = new ArrayList<>(routingVertices);
+            Vertex first = vList.get(0);
+            Vertex last  = vList.get(vList.size() - 1);
             StringBuilder path = new StringBuilder();
-            path.append(String.format("M %.1f %.1f", p1[0], p1[1]));
-            for (Vertex v : routingVertices) {
-                path.append(String.format(" L %d %d", v.getX(), v.getY()));
+            path.append(String.format("M %d %d", first.getX(), first.getY()));
+            for (int vi = 1; vi < vList.size(); vi++) {
+                path.append(String.format(" L %d %d", vList.get(vi).getX(), vList.get(vi).getY()));
             }
-            path.append(String.format(" L %.1f %.1f", p2[0], p2[1]));
             pathD = path.toString();
-            double[] lp = polylinePointAtFraction(p1, routingVertices, p2, position / 100.0);
-            labelX = lp[0];
-            labelY = lp[1] - 6;
+            double[] fp = {first.getX(), first.getY()};
+            double[] lp = {last.getX(),  last.getY()};
+            Collection<Vertex> midVerts = vList.subList(1, vList.size() - 1);
+            double[] lpos = polylinePointAtFraction(fp, midVerts, lp, position / 100.0);
+            labelX = lpos[0];
+            labelY = lpos[1] - 6;
         } else if (routing == Routing.Curved) {
             double midX = (p1[0] + p2[0]) / 2;
             double midY = (p1[1] + p2[1]) / 2;

@@ -176,7 +176,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     private void writeBoundaryRect(ModelView view, BoundaryState state, IndentingWriter writer) {
         String strokeColor = state.strokeColor;
         String dashArray   = state.dashArray;
-        if (state.elementIds.isEmpty()) return;
+        if (state.elementIds.isEmpty() && !state.hasChildBounds()) return;
 
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
@@ -197,21 +197,32 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             maxY = Math.max(maxY, ev.getY() + h);
         }
 
+        // Expand to include any nested child boundary rects that were already drawn
+        if (state.hasChildBounds()) {
+            minX = Math.min(minX, state.childMinX);
+            minY = Math.min(minY, state.childMinY);
+            maxX = Math.max(maxX, state.childMaxX);
+            maxY = Math.max(maxY, state.childMaxY);
+        }
+
         if (minX == Integer.MAX_VALUE) return;
 
         int bx = minX - BOUNDARY_PADDING;
         int by = minY - BOUNDARY_PADDING;
         int bw = (maxX - minX) + BOUNDARY_PADDING * 2;
         int bh = (maxY - minY) + BOUNDARY_PADDING * 2 + BOUNDARY_LABEL_HEIGHT;
-        // Reference uses ~33.6px (fontSize*1.4 where fontSize=24) for boundary labels
         int fontSize = 33;
+
+        // Propagate this boundary's rect to the parent boundary (if nested)
+        if (!boundaryStack.isEmpty()) {
+            boundaryStack.peek().expandChildBounds(bx, by, bx + bw, by + bh);
+        }
 
         String dashAttr = dashArray.isEmpty() ? "" : String.format(" stroke-dasharray=\"%s\"", dashArray);
         writer.writeLine(String.format(
             "<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"0\" " +
             "fill=\"none\" stroke=\"%s\" stroke-width=\"2\"%s/>",
             bx, by, bw, bh, strokeColor, dashAttr));
-        // Label at bottom-left, bold, 15px margin (matches reference placement)
         writer.writeLine(String.format(
             "<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"%d\" " +
             "font-weight=\"bold\" fill=\"%s\">%s</text>",
@@ -240,6 +251,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         final String strokeColor;
         final String dashArray;
         final List<String> elementIds = new ArrayList<>();
+        int childMinX = Integer.MAX_VALUE, childMinY = Integer.MAX_VALUE;
+        int childMaxX = Integer.MIN_VALUE, childMaxY = Integer.MIN_VALUE;
 
         BoundaryState(String label, BoundaryType type, String strokeColor, String dashArray) {
             this.label       = label;
@@ -248,8 +261,15 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             this.dashArray   = dashArray;
         }
 
-        void addElement(String id) {
-            elementIds.add(id);
+        void addElement(String id) { elementIds.add(id); }
+
+        boolean hasChildBounds() { return childMinX != Integer.MAX_VALUE; }
+
+        void expandChildBounds(int x1, int y1, int x2, int y2) {
+            childMinX = Math.min(childMinX, x1);
+            childMinY = Math.min(childMinY, y1);
+            childMaxX = Math.max(childMaxX, x2);
+            childMaxY = Math.max(childMaxY, y2);
         }
     }
 }

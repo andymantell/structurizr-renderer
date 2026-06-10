@@ -99,9 +99,10 @@ public class ElkLayoutStrategy implements LayoutStrategy {
             }
         }
 
-        // Use ELK's computed port positions (section start/end) for cleaner connection points.
-        // We deliberately skip bend points — straight diagonal lines look like the official
-        // Structurizr rendering and are far less visually noisy than orthogonal routing.
+        // Store ELK's full edge path (port exit → bend points → port entry).
+        // Including bend points is essential: ELK routes edges through separate channels to avoid
+        // crossings, but only when all waypoints are preserved. Throwing away bends and drawing
+        // straight diagonals discards that crossing-avoidance work and creates a tangled mess.
         for (int i = 0; i < rvList.size(); i++) {
             RelationshipView rv = rvList.get(i);
             ElkEdge edge = edgeList.get(i);
@@ -109,6 +110,9 @@ public class ElkLayoutStrategy implements LayoutStrategy {
                 ElkEdgeSection section = edge.getSections().get(0);
                 List<Vertex> vertices = new ArrayList<>();
                 vertices.add(new Vertex((int) section.getStartX(), (int) section.getStartY()));
+                for (ElkBendPoint bp : section.getBendPoints()) {
+                    vertices.add(new Vertex((int) bp.getX(), (int) bp.getY()));
+                }
                 vertices.add(new Vertex((int) section.getEndX(), (int) section.getEndY()));
                 rv.setVertices(vertices);
             }
