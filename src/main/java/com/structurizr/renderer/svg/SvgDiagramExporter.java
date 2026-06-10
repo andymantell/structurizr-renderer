@@ -4,6 +4,7 @@ import com.structurizr.export.AbstractDiagramExporter;
 import com.structurizr.export.Diagram;
 import com.structurizr.export.IndentingWriter;
 import com.structurizr.model.*;
+import com.structurizr.renderer.layout.ElkLayoutStrategy;
 import com.structurizr.view.*;
 
 import java.util.ArrayDeque;
@@ -34,10 +35,9 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         int maxX = 0, maxY = 0;
         for (ElementView ev : view.getElements()) {
             ElementStyle style = findElementStyle(view, ev.getElement());
-            int w = style.getWidth()  != null ? style.getWidth()  : 450;
-            int h = style.getHeight() != null ? style.getHeight() : 300;
-            maxX = Math.max(maxX, ev.getX() + w);
-            maxY = Math.max(maxY, ev.getY() + h);
+            int[] dims = ElkLayoutStrategy.defaultDimensions(ev.getElement(), style);
+            maxX = Math.max(maxX, ev.getX() + dims[0]);
+            maxY = Math.max(maxY, ev.getY() + dims[1]);
         }
         int cw = maxX + PADDING * 2;
         int ch = maxY + PADDING * 2;
@@ -74,8 +74,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         if (ev == null) return;
 
         ElementStyle style = findElementStyle(view, element);
-        int w = style.getWidth()  != null ? style.getWidth()  : 450;
-        int h = style.getHeight() != null ? style.getHeight() : 300;
+        int[] dims = ElkLayoutStrategy.defaultDimensions(element, style);
+        int w = dims[0], h = dims[1];
 
         writer.writeLine(Shapes.render(view, element, style, ev.getX(), ev.getY(), w, h));
     }
@@ -188,8 +188,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             if (ev == null) continue;
 
             ElementStyle style = findElementStyle(view, element);
-            int w = style.getWidth()  != null ? style.getWidth()  : 450;
-            int h = style.getHeight() != null ? style.getHeight() : 300;
+            int[] dims = ElkLayoutStrategy.defaultDimensions(element, style);
+            int w = dims[0], h = dims[1];
 
             minX = Math.min(minX, ev.getX());
             minY = Math.min(minY, ev.getY());

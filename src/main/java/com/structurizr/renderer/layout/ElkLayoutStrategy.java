@@ -3,6 +3,7 @@ package com.structurizr.renderer.layout;
 import com.structurizr.Workspace;
 import com.structurizr.model.Element;
 import com.structurizr.view.*;
+import com.structurizr.view.Shape;
 import org.eclipse.elk.alg.layered.options.LayeredMetaDataProvider;
 import org.eclipse.elk.alg.layered.options.LayeredOptions;
 import org.eclipse.elk.core.RecursiveGraphLayoutEngine;
@@ -63,8 +64,9 @@ public class ElkLayoutStrategy implements LayoutStrategy {
             com.structurizr.model.Element element = ev.getElement();
             ElementStyle style = view.getViewSet().getConfiguration().getStyles().findElementStyle(element);
 
-            int w = style.getWidth() != null ? style.getWidth() : 450;
-            int h = style.getHeight() != null ? style.getHeight() : 300;
+            int[] dims = defaultDimensions(element, style);
+            int w = dims[0];
+            int h = dims[1];
 
             ElkNode node = ElkGraphUtil.createNode(root);
             node.setWidth(w);
@@ -111,6 +113,19 @@ public class ElkLayoutStrategy implements LayoutStrategy {
                 rv.setVertices(vertices);
             }
         }
+    }
+
+    /** Returns [width, height] with shape-aware defaults matching the reference renderer. */
+    public static int[] defaultDimensions(com.structurizr.model.Element element, ElementStyle style) {
+        int w = style.getWidth()  != null ? style.getWidth()  : 0;
+        int h = style.getHeight() != null ? style.getHeight() : 0;
+        if (w > 0 && h > 0) return new int[]{w, h};
+        Shape shape = style.getShape() != null ? style.getShape() : Shape.Box;
+        // Person/Robot use a taller element (400×400) matching the reference
+        if (shape == Shape.Person || shape == Shape.Robot) {
+            return new int[]{w > 0 ? w : 400, h > 0 ? h : 400};
+        }
+        return new int[]{w > 0 ? w : 450, h > 0 ? h : 300};
     }
 
     private Direction toElkDirection(AutomaticLayout.RankDirection rankDirection) {

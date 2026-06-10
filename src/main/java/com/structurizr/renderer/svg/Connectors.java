@@ -1,6 +1,7 @@
 package com.structurizr.renderer.svg;
 
 import com.structurizr.model.Relationship;
+import com.structurizr.renderer.layout.ElkLayoutStrategy;
 import com.structurizr.view.*;
 
 import java.util.ArrayList;
@@ -24,10 +25,10 @@ public class Connectors {
         ElementStyle srcStyle = view.getViewSet().getConfiguration().getStyles().findElementStyle(srcEv.getElement());
         ElementStyle dstStyle = view.getViewSet().getConfiguration().getStyles().findElementStyle(dstEv.getElement());
 
-        int srcW = srcStyle.getWidth() != null ? srcStyle.getWidth() : 450;
-        int srcH = srcStyle.getHeight() != null ? srcStyle.getHeight() : 300;
-        int dstW = dstStyle.getWidth() != null ? dstStyle.getWidth() : 450;
-        int dstH = dstStyle.getHeight() != null ? dstStyle.getHeight() : 300;
+        int[] srcDims = ElkLayoutStrategy.defaultDimensions(srcEv.getElement(), srcStyle);
+        int[] dstDims = ElkLayoutStrategy.defaultDimensions(dstEv.getElement(), dstStyle);
+        int srcW = srcDims[0], srcH = srcDims[1];
+        int dstW = dstDims[0], dstH = dstDims[1];
 
         double x1 = srcEv.getX() + srcW / 2.0;
         double y1 = srcEv.getY() + srcH / 2.0;
