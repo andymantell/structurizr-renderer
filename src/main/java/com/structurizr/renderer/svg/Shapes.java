@@ -155,7 +155,7 @@ public class Shapes {
     }
 
     // -------------------------------------------------------------------------
-    // Cylinder
+    // Cylinder — path format matches reference SVG exactly
     // -------------------------------------------------------------------------
     private static String renderCylinder(ModelView view, Element element, ElementStyle style,
                                           int x, int y, int w, int h) {
@@ -164,23 +164,23 @@ public class Shapes {
         int    sw     = strokeWidth(style);
 
         int rx    = w / 2;
-        int ry    = Math.min(60, h / 5);
-        int cx    = x + w / 2;
-        int topCy = y + ry;
-        int botCy = y + h - ry;
-        int bodyH = botCy - topCy;
+        int ry    = Math.max(4, h / 10);
+        int bodyH = h - 2 * ry;
 
+        // Single closed path: full top ellipse (two arcs) + sides + front bottom arc
         StringBuilder sb = new StringBuilder();
         sb.append(openGroup(element));
-        // Body: left edge down, bottom arc (sweep=0 curves downward in SVG y-down coords), right edge up, closed at top
         sb.append(String.format(
-            "<path d=\"M %d %d L %d %d A %d %d 0 0 0 %d %d L %d %d Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            x, topCy, x, botCy, rx, ry, x + w, botCy, x + w, topCy, bg, stroke, sw));
-        // Top ellipse (lighter shade) drawn on top to give the lid effect
-        sb.append(String.format(
-            "<ellipse cx=\"%d\" cy=\"%d\" rx=\"%d\" ry=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            cx, topCy, rx, ry, shadeColor(bg, 15), stroke, sw));
-        sb.append(renderBoxText(view, element, style, x, topCy, w, bodyH));
+            "<path d=\"M %d,%d a %d,%d 0,0,0 %d 0 a %d,%d 0,0,0 -%d 0 l 0,%d a %d,%d 0,0,0 %d 0 l 0,-%d\" " +
+            "fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
+            x, y + ry,
+            rx, ry, w,
+            rx, ry, w,
+            bodyH,
+            rx, ry, w,
+            bodyH,
+            bg, stroke, sw));
+        sb.append(renderBoxText(view, element, style, x, y + ry, w, bodyH));
         sb.append("</g>\n");
         return sb.toString();
     }
