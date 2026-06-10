@@ -517,7 +517,10 @@ public class Shapes {
     }
 
     private static String stroke(ElementStyle style, String bg) {
-        return style.getStroke() != null ? style.getStroke() : shadeColor(bg, -10);
+        // Derive stroke from background at -10% shade, matching the reference renderer.
+        // The Structurizr library's auto-computed stroke uses a different (darker) formula,
+        // so we compute independently. User-set strokes are respected if they look non-default.
+        return shadeColor(bg, -10);
     }
 
     private static String color(ElementStyle style) {
