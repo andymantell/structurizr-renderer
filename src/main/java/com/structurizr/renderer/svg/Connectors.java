@@ -11,9 +11,8 @@ public class Connectors {
 
     static final String DEFS_BLOCK =
         "<defs>" +
-        "<marker id=\"arrow\" markerUnits=\"userSpaceOnUse\" markerWidth=\"20\" markerHeight=\"20\" " +
-        "refX=\"20\" refY=\"0\" orient=\"auto\">" +
-        "<path d=\"M 20 -10 0 0 20 10 Z\" fill=\"#444444\"/>" +
+        "<marker id=\"arrow\" orient=\"auto\" overflow=\"visible\" markerUnits=\"userSpaceOnUse\">" +
+        "<path transform=\"rotate(180)\" d=\"M 20 -10 0 0 20 10 Z\" stroke=\"#444444\" fill=\"#444444\"/>" +
         "</marker>" +
         "</defs>\n";
 
