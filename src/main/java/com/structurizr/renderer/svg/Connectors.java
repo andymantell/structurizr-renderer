@@ -90,14 +90,6 @@ public class Connectors {
         int[] srcDims = Shapes.defaultDimensions(srcEv.getElement(), srcStyle);
         int[] dstDims = Shapes.defaultDimensions(dstEv.getElement(), dstStyle);
 
-        double x1 = srcEv.getX() + srcDims[0] / 2.0;
-        double y1 = srcEv.getY() + srcDims[1] / 2.0;
-        double x2 = dstEv.getX() + dstDims[0] / 2.0;
-        double y2 = dstEv.getY() + dstDims[1] / 2.0;
-
-        double[] p1 = clipToRect(x1, y1, x2, y2, srcEv.getX(), srcEv.getY(), srcDims[0], srcDims[1]);
-        double[] p2 = clipToRect(x2, y2, x1, y1, dstEv.getX(), dstEv.getY(), dstDims[0], dstDims[1]);
-
         String rawColor  = style.getColor();
         String color     = (rawColor == null || "#707070".equalsIgnoreCase(rawColor)) ? "#444444" : rawColor;
         int    thickness = style.getThickness() != null ? style.getThickness() : 2;
@@ -114,40 +106,66 @@ public class Connectors {
         Collection<Vertex> routingVertices = rv.getVertices();
         String pathD;
         double labelX, labelY;
-
-        // Build the ordered list of path points (clipped endpoints + waypoints) once,
-        // for both path-string construction and crossing detection.
         List<double[]> pathPoints = new ArrayList<>();
-        pathPoints.add(p1);
-        for (Vertex v : routingVertices) pathPoints.add(new double[]{v.getX(), v.getY()});
-        pathPoints.add(p2);
 
-        if (!routingVertices.isEmpty()) {
-            StringBuilder path = new StringBuilder();
-            path.append(String.format("M %.1f %.1f", p1[0], p1[1]));
-            for (Vertex v : routingVertices) {
-                path.append(String.format(" L %d %d", v.getX(), v.getY()));
+        if (rel.getSourceId().equals(rel.getDestinationId())) {
+            // Self-relationship: draw a loop bulging out from the element's right edge,
+            // exiting a third of the way down and re-entering two thirds of the way down.
+            double ex   = srcEv.getX() + srcDims[0];
+            double topY = srcEv.getY() + srcDims[1] / 3.0;
+            double botY = srcEv.getY() + srcDims[1] * 2 / 3.0;
+            double ext  = 180;
+            pathD = String.format("M %.1f %.1f C %.1f %.1f %.1f %.1f %.1f %.1f",
+                ex, topY, ex + ext, topY, ex + ext, botY, ex, botY);
+            for (double t = 0; t <= 1.0001; t += 0.25) {
+                pathPoints.add(cubicPoint(ex, topY, ex + ext, topY, ex + ext, botY, ex, botY, t));
             }
-            path.append(String.format(" L %.1f %.1f", p2[0], p2[1]));
-            pathD = path.toString();
-            double[] lpos = polylinePointAtFraction(p1, routingVertices, p2, position / 100.0);
-            labelX = lpos[0];
-            labelY = lpos[1] - 6;
-        } else if (routing == Routing.Curved) {
-            double midX = (p1[0] + p2[0]) / 2;
-            double midY = (p1[1] + p2[1]) / 2;
-            double dx = p2[0] - p1[0];
-            double dy = p2[1] - p1[1];
-            double cpX = midX - dy * 0.2;
-            double cpY = midY + dx * 0.2;
-            pathD  = String.format("M %.1f %.1f Q %.1f %.1f %.1f %.1f", p1[0], p1[1], cpX, cpY, p2[0], p2[1]);
-            labelX = cpX;
-            labelY = cpY - 6;
+            // Centre the label on the loop's rightmost point (the curve at t=0.5
+            // reaches ex + 0.75*ext)
+            labelX = ex + ext * 0.75;
+            labelY = (topY + botY) / 2.0;
         } else {
-            pathD  = String.format("M %.1f %.1f L %.1f %.1f", p1[0], p1[1], p2[0], p2[1]);
-            double t = position / 100.0;
-            labelX = p1[0] + t * (p2[0] - p1[0]);
-            labelY = p1[1] + t * (p2[1] - p1[1]) - 6;
+            double x1 = srcEv.getX() + srcDims[0] / 2.0;
+            double y1 = srcEv.getY() + srcDims[1] / 2.0;
+            double x2 = dstEv.getX() + dstDims[0] / 2.0;
+            double y2 = dstEv.getY() + dstDims[1] / 2.0;
+
+            double[] p1 = clipToRect(x1, y1, x2, y2, srcEv.getX(), srcEv.getY(), srcDims[0], srcDims[1]);
+            double[] p2 = clipToRect(x2, y2, x1, y1, dstEv.getX(), dstEv.getY(), dstDims[0], dstDims[1]);
+
+            // Build the ordered list of path points (clipped endpoints + waypoints) once,
+            // for both path-string construction and crossing detection.
+            pathPoints.add(p1);
+            for (Vertex v : routingVertices) pathPoints.add(new double[]{v.getX(), v.getY()});
+            pathPoints.add(p2);
+
+            if (!routingVertices.isEmpty()) {
+                StringBuilder path = new StringBuilder();
+                path.append(String.format("M %.1f %.1f", p1[0], p1[1]));
+                for (Vertex v : routingVertices) {
+                    path.append(String.format(" L %d %d", v.getX(), v.getY()));
+                }
+                path.append(String.format(" L %.1f %.1f", p2[0], p2[1]));
+                pathD = path.toString();
+                double[] lpos = polylinePointAtFraction(p1, routingVertices, p2, position / 100.0);
+                labelX = lpos[0];
+                labelY = lpos[1] - 6;
+            } else if (routing == Routing.Curved) {
+                double midX = (p1[0] + p2[0]) / 2;
+                double midY = (p1[1] + p2[1]) / 2;
+                double dx = p2[0] - p1[0];
+                double dy = p2[1] - p1[1];
+                double cpX = midX - dy * 0.2;
+                double cpY = midY + dx * 0.2;
+                pathD  = String.format("M %.1f %.1f Q %.1f %.1f %.1f %.1f", p1[0], p1[1], cpX, cpY, p2[0], p2[1]);
+                labelX = cpX;
+                labelY = cpY - 6;
+            } else {
+                pathD  = String.format("M %.1f %.1f L %.1f %.1f", p1[0], p1[1], p2[0], p2[1]);
+                double t = position / 100.0;
+                labelX = p1[0] + t * (p2[0] - p1[0]);
+                labelY = p1[1] + t * (p2[1] - p1[1]) - 6;
+            }
         }
 
         // Prefer the view-level description (set on dynamic-view steps) over the model-level
@@ -263,6 +281,15 @@ public class Connectors {
             cum += seg;
         }
         return pts.get(pts.size() - 1);
+    }
+
+    /** Point on a cubic Bézier (p0, control c1, control c2, p3) at parameter t. */
+    private static double[] cubicPoint(double p0x, double p0y, double c1x, double c1y,
+                                        double c2x, double c2y, double p3x, double p3y, double t) {
+        double u = 1 - t;
+        double x = u*u*u*p0x + 3*u*u*t*c1x + 3*u*t*t*c2x + t*t*t*p3x;
+        double y = u*u*u*p0y + 3*u*u*t*c1y + 3*u*t*t*c2y + t*t*t*p3y;
+        return new double[]{x, y};
     }
 
     private static double[] clipToRect(double x1, double y1, double x2, double y2,

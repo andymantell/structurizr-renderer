@@ -73,6 +73,23 @@ class SvgDiagramExporterTest {
     }
 
     @Test
+    void selfRelationshipRendersAsLoop() throws Exception {
+        Workspace workspace = new Workspace("test", "");
+        var a = workspace.getModel().addSoftwareSystem("System A");
+        a.uses(a, "Calls itself");
+
+        var view = workspace.getViews().createSystemLandscapeView("landscape", "");
+        view.addAllElements();
+        view.getElementView(a).setX(100);
+        view.getElementView(a).setY(100);
+
+        Diagram d = new SvgDiagramExporter().export(workspace).iterator().next();
+        String svg = d.getDefinition();
+        assertTrue(svg.contains("Calls itself"), "Self-relationship label missing");
+        assertTrue(svg.contains(" C "), "Self-relationship should render as a curved loop path");
+    }
+
+    @Test
     void negativeCoordinatesAreShiftedOntoCanvas() throws Exception {
         Workspace workspace = new Workspace("test", "");
         var a = workspace.getModel().addSoftwareSystem("System A");
