@@ -91,19 +91,16 @@ public class Connectors {
                 labelX = lpos[0];
                 labelY = lpos[1] - 6;
             } else {
-                // Legacy orthogonal/polyline mode: vertices are [start, ...bends..., end].
-                Vertex first = vList.get(0);
-                Vertex last  = vList.get(vList.size() - 1);
+                // Graphviz-style: vertices are INTERMEDIATE bend points only (no start/end).
+                // Use clipToRect endpoints and thread the intermediate waypoints between them.
                 StringBuilder path = new StringBuilder();
-                path.append(String.format("M %d %d", first.getX(), first.getY()));
-                for (int vi = 1; vi < vList.size(); vi++) {
-                    path.append(String.format(" L %d %d", vList.get(vi).getX(), vList.get(vi).getY()));
+                path.append(String.format("M %.1f %.1f", p1[0], p1[1]));
+                for (Vertex v : vList) {
+                    path.append(String.format(" L %d %d", v.getX(), v.getY()));
                 }
+                path.append(String.format(" L %.1f %.1f", p2[0], p2[1]));
                 pathD = path.toString();
-                double[] fp = {first.getX(), first.getY()};
-                double[] lp = {last.getX(),  last.getY()};
-                Collection<Vertex> midVerts = vList.subList(1, vList.size() - 1);
-                double[] lpos = polylinePointAtFraction(fp, midVerts, lp, position / 100.0);
+                double[] lpos = polylinePointAtFraction(p1, vList, p2, position / 100.0);
                 labelX = lpos[0];
                 labelY = lpos[1] - 6;
             }
