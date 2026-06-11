@@ -67,9 +67,9 @@ class SvgDiagramExporterTest {
         view.getElementView(b).setY(100);
 
         Diagram d = new SvgDiagramExporter().export(workspace).iterator().next();
-        String svg = d.getDefinition();
-        assertTrue(svg.contains("Reads from"), "First parallel relationship label missing");
-        assertTrue(svg.contains("Writes to"), "Second parallel relationship label missing");
+        String text = textContent(d.getDefinition());
+        assertTrue(text.contains("Reads from"), "First parallel relationship label missing");
+        assertTrue(text.contains("Writes to"), "Second parallel relationship label missing");
     }
 
     @Test
@@ -85,7 +85,7 @@ class SvgDiagramExporterTest {
 
         Diagram d = new SvgDiagramExporter().export(workspace).iterator().next();
         String svg = d.getDefinition();
-        assertTrue(svg.contains("Calls itself"), "Self-relationship label missing");
+        assertTrue(textContent(svg).contains("Calls itself"), "Self-relationship label missing");
         assertTrue(svg.contains(" C "), "Self-relationship should render as a curved loop path");
     }
 
@@ -164,16 +164,32 @@ class SvgDiagramExporterTest {
         // Spot-checks for specific exercised features
         String containers = diagrams.stream().filter(d -> d.getKey().equals("Containers"))
             .findFirst().orElseThrow().getDefinition();
-        // Labels word-wrap across <text> elements, so check distinctive single words
-        assertTrue(containers.contains("Retries"), "Self-loop label missing");
-        assertTrue(containers.contains("Reads catalogue") && containers.contains("history to"),
-            "Parallel pair labels missing");
+        // Labels word-wrap across <text> elements at font-dependent positions, so
+        // reassemble the text content before matching full label strings.
+        String containersText = textContent(containers);
+        assertTrue(containersText.contains("Retries failed encodes"), "Self-loop label missing");
+        assertTrue(containersText.contains("Reads catalogue & profile data from"),
+            "First parallel pair label missing");
+        assertTrue(containersText.contains("Writes watch history to"),
+            "Second parallel pair label missing");
         assertTrue(containers.contains(" Q "), "Curved (ML) relationship should render a quadratic path");
 
         String deployment = diagrams.stream().filter(d -> d.getKey().equals("ProductionDeployment"))
             .findFirst().orElseThrow().getDefinition();
         assertTrue(deployment.contains("data:image/png;base64,"),
             "AWS theme icons should be embedded in the deployment view");
+    }
+
+    /**
+     * All &lt;text&gt; element content joined in document order. Wrapped label lines
+     * are consecutive text elements, so this reassembles full label strings
+     * independently of where the platform's font metrics broke the lines.
+     */
+    private static String textContent(String svg) {
+        StringBuilder sb = new StringBuilder();
+        var m = java.util.regex.Pattern.compile(">([^<>]+)</text>").matcher(svg);
+        while (m.find()) sb.append(m.group(1)).append(' ');
+        return sb.toString().replace("&amp;", "&").replaceAll("\\s+", " ");
     }
 
     @Test
