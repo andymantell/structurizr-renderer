@@ -20,9 +20,9 @@ public class Connectors {
             + "</marker>\n"
             // Soft drop shadow, spelled out long-hand for Batik compatibility
             + "<filter id=\"elem-shadow\" x=\"-15%\" y=\"-15%\" width=\"130%\" height=\"130%\">"
-            + "<feGaussianBlur in=\"SourceAlpha\" stdDeviation=\"5\"/>"
+            + "<feGaussianBlur in=\"SourceAlpha\" stdDeviation=\"6\"/>"
             + "<feOffset dx=\"0\" dy=\"3\" result=\"ob\"/>"
-            + "<feFlood flood-color=\"#000000\" flood-opacity=\"0.22\"/>"
+            + "<feFlood flood-color=\"#000000\" flood-opacity=\"0.3\"/>"
             + "<feComposite in2=\"ob\" operator=\"in\"/>"
             + "<feMerge><feMergeNode/><feMergeNode in=\"SourceGraphic\"/></feMerge>"
             + "</filter>\n"
@@ -414,7 +414,7 @@ public class Connectors {
         // the later-drawn one fully blanks the earlier one rather than leaving scrambled text.
         double blockTop = li.labelY - li.labelH / 2.0;
         sb.append(String.format(
-            "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"6\" fill=\"#ffffff\"/>\n",
+            "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"9\" fill=\"#ffffff\"/>\n",
             li.labelX - li.labelW / 2.0, blockTop, li.labelW, li.labelH));
 
         double textY = blockTop + li.descLineH;
