@@ -2,3 +2,6 @@ target/
 *.class
 *.dot
 *.dot.svg
+
+# Maven wrapper JAR (downloaded on first use, not checked in)
+.mvn/wrapper/maven-wrapper.jar

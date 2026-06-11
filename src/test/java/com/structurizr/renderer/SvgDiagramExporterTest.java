@@ -3,7 +3,7 @@ package com.structurizr.renderer;
 import com.structurizr.Workspace;
 import com.structurizr.dsl.StructurizrDslParser;
 import com.structurizr.export.Diagram;
-import com.structurizr.renderer.layout.ElkLayoutStrategy;
+import com.structurizr.renderer.layout.LayoutStrategyFactory;
 import com.structurizr.renderer.svg.SvgDiagramExporter;
 import org.junit.jupiter.api.Test;
 
@@ -25,8 +25,7 @@ class SvgDiagramExporterTest {
         parser.parse(dsl);
         Workspace workspace = parser.getWorkspace();
 
-        // Use ELK so this test has no external dependency on graphviz
-        new ElkLayoutStrategy().applyLayout(workspace);
+        LayoutStrategyFactory.create().applyLayout(workspace);
 
         Collection<Diagram> diagrams = new SvgDiagramExporter().export(workspace);
 
