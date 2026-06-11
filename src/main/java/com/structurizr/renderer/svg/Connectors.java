@@ -114,22 +114,26 @@ public class Connectors {
                 ? Shapes.wrapText("[" + technology + "]", maxLabelWidth, techFontSize) : new ArrayList<>();
 
             int totalH = descLines.size() * descLineH + techLines.size() * techLineH + 8;
-            int rectW  = maxLabelWidth + 12;
 
-            // Background rect, centered horizontally on label midpoint
-            sb.append(String.format(
-                "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"3\" fill=\"#ffffff\"/>\n",
-                labelX - rectW / 2.0, labelY - totalH / 2.0, rectW, totalH
-            ));
-
+            // Draw a tight per-line background rect then the text, so the backing only masks the
+            // area directly behind each text line rather than one large rectangle that blanks out
+            // neighbouring connectors and boundary lines.
             double textY = labelY - totalH / 2.0 + descLineH;
             for (String line : descLines) {
+                int lineW = (int)(line.length() * fontSize * 0.55) + 10;
+                sb.append(String.format(
+                    "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"2\" fill=\"#ffffff\"/>\n",
+                    labelX - lineW / 2.0, textY - descLineH + 3, lineW, descLineH - 2));
                 sb.append(String.format(
                     "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
                     labelX, textY, Shapes.DEFAULT_FONT, fontSize, color, Shapes.htmlEscape(line)));
                 textY += descLineH;
             }
             for (String line : techLines) {
+                int lineW = (int)(line.length() * techFontSize * 0.55) + 10;
+                sb.append(String.format(
+                    "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"2\" fill=\"#ffffff\"/>\n",
+                    labelX - lineW / 2.0, textY - techLineH + 3, lineW, techLineH - 2));
                 sb.append(String.format(
                     "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" font-style=\"italic\" fill=\"%s\">%s</text>\n",
                     labelX, textY, Shapes.DEFAULT_FONT, techFontSize, color, Shapes.htmlEscape(line)));
