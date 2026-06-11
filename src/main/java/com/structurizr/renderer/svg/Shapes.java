@@ -136,21 +136,22 @@ public class Shapes {
         int    sw     = strokeWidth(style);
         String color  = color(style);
 
-        double headW = w * 0.5;
-        double headH = h * 0.2;
+        // Same layout as Person — full-width body carries the text — but with a
+        // square antenna'd head instead of a circle.
+        double headW = w / 2.2;
+        double headH = headW * 0.8;
         double headX = x + (w - headW) / 2.0;
-        double headY = y + h * 0.05;
+        double headY = y + h * 0.06;
+        double antX  = x + w / 2.0;
+        double antTopY = y + sw * 2.0;
 
-        double bodyW = w * 0.7;
-        double bodyH = h * 0.3;
-        double bodyX = x + (w - bodyW) / 2.0;
-        double bodyY = headY + headH + h * 0.05;
+        double bodyTop = headY + headH * 0.9; // slight overlap with head
+        double bodyH   = (y + h) - bodyTop;
+        double bodyRx  = Math.min(70, w * 0.175);
+        double legStartY = bodyTop + bodyH * (2.0 / 3.0);
 
-        double antX   = x + w / 2.0;
-        double antTopY = headY - h * 0.08;
-
-        double eyeR = headH * 0.15;
-        double eyeY = headY + headH / 2.0;
+        double eyeR = headH * 0.12;
+        double eyeY = headY + headH * 0.45;
 
         StringBuilder sb = new StringBuilder();
         sb.append(openGroup(element));
@@ -160,29 +161,21 @@ public class Shapes {
         sb.append(String.format("<circle cx=\"%.1f\" cy=\"%.1f\" r=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             antX, antTopY, sw * 2, bg, stroke, sw));
         // Head
-        sb.append(String.format("<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" rx=\"4\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
+        sb.append(String.format("<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" rx=\"8\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             headX, headY, headW, headH, bg, stroke, sw));
         // Eyes
         sb.append(String.format("<circle cx=\"%.1f\" cy=\"%.1f\" r=\"%.1f\" fill=\"%s\"/>\n", headX + headW * 0.3, eyeY, eyeR, color));
         sb.append(String.format("<circle cx=\"%.1f\" cy=\"%.1f\" r=\"%.1f\" fill=\"%s\"/>\n", headX + headW * 0.7, eyeY, eyeR, color));
         // Body
-        sb.append(String.format("<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            bodyX, bodyY, bodyW, bodyH, bg, stroke, sw));
-        // Arms
-        double armY = bodyY + bodyH * 0.3;
-        sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            (double) x, armY, bodyX, armY, stroke, sw));
-        sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            bodyX + bodyW, armY, (double)(x + w), armY, stroke, sw));
-        // Legs
-        double legTopY = bodyY + bodyH;
-        double legBotY = y + h * 0.9;
-        sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            bodyX + bodyW * 0.25, legTopY, x + w * 0.2, legBotY, stroke, sw));
-        sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            bodyX + bodyW * 0.75, legTopY, x + w * 0.8, legBotY, stroke, sw));
-
-        sb.append(renderBoxText(view, element, style, x, y, w, h));
+        sb.append(String.format("<rect x=\"%d\" y=\"%.1f\" width=\"%d\" height=\"%.1f\" rx=\"%.1f\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
+            x, bodyTop, w, bodyH, bodyRx, bg, stroke, sw));
+        // Legs (two vertical lines overlaid on the lower body, like Person)
+        sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"1\"/>\n",
+            x + w * 0.2, legStartY, x + w * 0.2, (double)(y + h), stroke));
+        sb.append(String.format("<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\" stroke=\"%s\" stroke-width=\"1\"/>\n",
+            x + w * 0.8, legStartY, x + w * 0.8, (double)(y + h), stroke));
+        // Text centred in body area
+        sb.append(renderBoxText(view, element, style, x, (int) bodyTop, w, (int) bodyH));
         sb.append("</g>\n");
         return sb.toString();
     }
