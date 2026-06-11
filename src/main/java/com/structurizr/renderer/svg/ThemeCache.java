@@ -106,12 +106,12 @@ public class ThemeCache {
                 String icon = iconNode.asText();
                 if (icon.isEmpty() || icon.startsWith("http") || icon.startsWith("data:")) continue;
 
+                // Always overwrite so a newer bundled theme in an upgraded JAR
+                // replaces previously extracted icons rather than serving stale ones.
                 Path dest = themeDir.resolve(icon);
-                if (!Files.exists(dest)) {
-                    try (InputStream in = ThemeCache.class.getResourceAsStream(
-                            classpathRoot + "/" + icon)) {
-                        if (in != null) Files.write(dest, in.readAllBytes());
-                    }
+                try (InputStream in = ThemeCache.class.getResourceAsStream(
+                        classpathRoot + "/" + icon)) {
+                    if (in != null) Files.write(dest, in.readAllBytes());
                 }
             }
         }
