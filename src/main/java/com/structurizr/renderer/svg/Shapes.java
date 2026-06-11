@@ -391,10 +391,10 @@ public class Shapes {
             x, y, w, h, bg, stroke, sw));
         sb.append(String.format("<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             x, y + barH, x + w, y + barH, stroke, sw));
-        // Address bar oval
+        // Address bar oval, filled a fraction lighter than the body so it stands out
         int barInner = (int)(barH * 0.6);
-        sb.append(String.format("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"%d\" fill=\"none\" stroke=\"%s\" stroke-width=\"1\"/>\n",
-            x + w / 5, y + (barH - barInner) / 2, w * 3 / 5, barInner, barInner / 2, stroke));
+        sb.append(String.format("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1\"/>\n",
+            x + w / 5, y + (barH - barInner) / 2, w * 3 / 5, barInner, barInner / 2, shadeColor(bg, 15), stroke));
         sb.append(renderBoxText(view, element, style, x, y + barH, w, h - barH));
         sb.append("</g>\n");
         return sb.toString();
