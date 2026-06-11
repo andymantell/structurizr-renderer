@@ -361,8 +361,9 @@ public class Shapes {
         String stroke = stroke(style, bg);
         int    sw     = strokeWidth(style);
 
-        int notchW = Math.max(8, (int)(w * 0.15));
-        int notchH = Math.max(8, (int)(h * 0.15));
+        // UML component glyph: a small, tight pair of plugs at the top-left corner
+        int notchW = Math.min(46, Math.max(16, w / 10));
+        int notchH = Math.min(22, Math.max(10, h / 12));
         int notchX = x - notchW / 2;
 
         StringBuilder sb = new StringBuilder();
@@ -370,9 +371,9 @@ public class Shapes {
         sb.append(String.format("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             x, y, w, h, bg, stroke, sw));
         sb.append(String.format("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            notchX, y + h / 4 - notchH / 2, notchW, notchH, bg, stroke, sw));
+            notchX, y + notchH, notchW, notchH, bg, stroke, sw));
         sb.append(String.format("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            notchX, y + 3 * h / 4 - notchH / 2, notchW, notchH, bg, stroke, sw));
+            notchX, y + notchH * 5 / 2, notchW, notchH, bg, stroke, sw));
         sb.append(renderBoxText(view, element, style, x, y, w, h));
         sb.append("</g>\n");
         return sb.toString();
