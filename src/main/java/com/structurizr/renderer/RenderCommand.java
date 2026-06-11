@@ -59,8 +59,27 @@ public class RenderCommand implements Callable<Integer> {
                         + "e.g. http://proxy.example.com:8080 or proxy.example.com:8080")
     private String proxy;
 
+    @Option(names = {"--verbose"},
+            description = "Print full stack traces on errors")
+    private boolean verbose;
+
     @Override
-    public Integer call() throws Exception {
+    public Integer call() {
+        try {
+            return render();
+        } catch (Exception e) {
+            String message = e.getMessage() != null ? e.getMessage() : e.toString();
+            System.err.println("Error: " + message);
+            if (verbose) {
+                e.printStackTrace();
+            } else {
+                System.err.println("Run with --verbose for a full stack trace.");
+            }
+            return 1;
+        }
+    }
+
+    private Integer render() throws Exception {
         String fmt = format.toLowerCase(java.util.Locale.ROOT);
         boolean doSvg = fmt.equals("svg") || fmt.equals("both");
         boolean doPng = fmt.equals("png") || fmt.equals("both");
