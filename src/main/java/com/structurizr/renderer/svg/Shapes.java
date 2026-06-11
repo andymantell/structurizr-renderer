@@ -24,6 +24,38 @@ public class Shapes {
         return new int[]{w > 0 ? w : 450, h > 0 ? h : 300};
     }
 
+    /**
+     * Element rect [x, y, w, h]: the default dimensions, with the height grown when
+     * the wrapped text block wouldn't fit the shape's text area. Growth is centred
+     * on the laid-out box so the element keeps the centre the layout gave it.
+     */
+    static int[] elementRect(ModelView view, Element element, ElementStyle style, int evX, int evY) {
+        int[] dims = defaultDimensions(element, style);
+        int w = dims[0], h = dims[1];
+        Shape shape = style.getShape() != null ? style.getShape() : Shape.Box;
+
+        int textW = shape == Shape.Pipe ? w - 2 * Math.min(60, w / 5) : w;
+        int textH = layoutText(view, element, style, textW).height();
+        int pad   = 30; // breathing room above and below the text
+
+        // Convert the required text-area height into an element height, accounting
+        // for the parts of each shape that can't hold text (heads, tabs, bars, caps).
+        int needed = switch (shape) {
+            case Person   -> (int) Math.ceil(textH + pad + 0.4 * w);            // head circle occupies ~0.4w
+            case Robot    -> (int) Math.ceil((textH + pad + 0.327 * w) / 0.94); // antenna + head occupy 0.06h + ~0.327w
+            case Cylinder -> (int) Math.ceil((textH + pad) / 0.8);              // end ellipses occupy 2*(h/10)
+            case Folder, WebBrowser -> (int) Math.ceil((textH + pad) / 0.88);   // tab / browser chrome
+            case Window   -> (int) Math.ceil((textH + pad) / 0.9);              // title bar
+            case Hexagon, Diamond, Ellipse -> (int) Math.ceil((textH + pad) * 1.25); // shape narrows at top/bottom
+            case Circle   -> h; // radius is min(w,h)/2, so vertical growth adds no text room
+            default       -> textH + pad
+                + (style.getIcon() != null && !style.getIcon().isBlank() ? ICON_AREA : 0);
+        };
+
+        int grownH = Math.max(h, needed);
+        return new int[]{evX, evY - (grownH - h) / 2, w, grownH};
+    }
+
     static String render(ModelView view, Element element, ElementStyle style, int x, int y, int w, int h) {
         Shape shape = style.getShape() != null ? style.getShape() : Shape.Box;
         return switch (shape) {
@@ -454,8 +486,45 @@ public class Shapes {
      */
     static String renderBoxText(ModelView view, Element element, ElementStyle style,
                                  int x, int y, int w, int h) {
+        TextBlock tb = layoutText(view, element, style, w);
+        String color = color(style);
+
+        int curY = y + Math.max((h - tb.height()) / 2, 0) + tb.nameFontSize;
+        int cx   = x + w / 2;
+
+        StringBuilder sb = new StringBuilder();
+
+        for (String nameLine : tb.nameLines) {
+            sb.append(String.format(
+                "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
+                "font-weight=\"bold\" fill=\"%s\">%s</text>\n",
+                cx, curY, DEFAULT_FONT, tb.nameFontSize, color, htmlEscape(nameLine)));
+            curY += tb.nameLineH;
+        }
+
+        if (!tb.typeStr.isEmpty()) {
+            sb.append(String.format(
+                "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
+                "fill=\"%s\">[%s]</text>\n",
+                cx, curY, DEFAULT_FONT, tb.typeFontSize, color, htmlEscape(tb.typeStr)));
+            curY += tb.typeLineH;
+            // Extra gap so description text (larger font) doesn't crowd the type subheading
+            if (!tb.descLines.isEmpty()) curY += tb.descFontSize / 3;
+        }
+
+        for (String line : tb.descLines) {
+            sb.append(String.format(
+                "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
+                cx, curY, DEFAULT_FONT, tb.descFontSize, color, htmlEscape(line)));
+            curY += tb.descLineH;
+        }
+
+        return sb.toString();
+    }
+
+    /** The wrapped name/type/description block for a given available width. */
+    private static TextBlock layoutText(ModelView view, Element element, ElementStyle style, int w) {
         int fontSize     = style.getFontSize() != null ? style.getFontSize() : 24;
-        String color     = color(style);
         String typeStr   = typeLabel(view, element);
         String name      = element.getName();
         String desc      = element.getDescription();
@@ -463,50 +532,26 @@ public class Shapes {
         int nameFontSize = (int)(fontSize * 1.4);
         int typeFontSize = (int)(fontSize * 0.7);
         int descFontSize = fontSize;
-        int nameLineH    = (int)(nameFontSize * 1.4);
-        int typeLineH    = (int)(typeFontSize * 1.4);
-        int descLineH    = (int)(descFontSize * 1.4);
 
         List<String> nameLines = wrapText(name, w - 20, nameFontSize, true);
         if (nameLines.isEmpty()) nameLines.add(name);
         List<String> descLines = (desc != null && !desc.isEmpty())
             ? wrapText(desc, w - 20, descFontSize) : new ArrayList<>();
 
-        int totalH = nameLines.size() * nameLineH
-                   + (typeStr.isEmpty() ? 0 : typeLineH)
-                   + descLines.size() * descLineH;
+        return new TextBlock(nameLines, typeStr, descLines,
+            nameFontSize, typeFontSize, descFontSize,
+            (int)(nameFontSize * 1.4), (int)(typeFontSize * 1.4), (int)(descFontSize * 1.4));
+    }
 
-        int curY = y + (h - totalH) / 2 + nameFontSize;
-        int cx   = x + w / 2;
-
-        StringBuilder sb = new StringBuilder();
-
-        for (String nameLine : nameLines) {
-            sb.append(String.format(
-                "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
-                "font-weight=\"bold\" fill=\"%s\">%s</text>\n",
-                cx, curY, DEFAULT_FONT, nameFontSize, color, htmlEscape(nameLine)));
-            curY += nameLineH;
+    private record TextBlock(List<String> nameLines, String typeStr, List<String> descLines,
+                             int nameFontSize, int typeFontSize, int descFontSize,
+                             int nameLineH, int typeLineH, int descLineH) {
+        int height() {
+            return nameLines.size() * nameLineH
+                 + (typeStr.isEmpty() ? 0 : typeLineH)
+                 + (typeStr.isEmpty() || descLines.isEmpty() ? 0 : descFontSize / 3)
+                 + descLines.size() * descLineH;
         }
-
-        if (!typeStr.isEmpty()) {
-            sb.append(String.format(
-                "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
-                "fill=\"%s\">[%s]</text>\n",
-                cx, curY, DEFAULT_FONT, typeFontSize, color, htmlEscape(typeStr)));
-            curY += typeLineH;
-            // Extra gap so description text (larger font) doesn't crowd the type subheading
-            if (!descLines.isEmpty()) curY += descFontSize / 3;
-        }
-
-        for (String line : descLines) {
-            sb.append(String.format(
-                "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
-                cx, curY, DEFAULT_FONT, descFontSize, color, htmlEscape(line)));
-            curY += descLineH;
-        }
-
-        return sb.toString();
     }
 
     // -------------------------------------------------------------------------

@@ -463,18 +463,18 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         if (ev == null) return;
 
         ElementStyle style = findElementStyle(view, element);
-        int[] dims = Shapes.defaultDimensions(element, style);
-        int w = dims[0], h = dims[1];
+        int[] rect = Shapes.elementRect(view, element, style, ev.getX(), ev.getY());
+        int ex = rect[0], ey = rect[1], w = rect[2], h = rect[3];
 
-        actualMinX = Math.min(actualMinX, ev.getX());
-        actualMinY = Math.min(actualMinY, ev.getY());
-        actualMaxX = Math.max(actualMaxX, ev.getX() + w);
-        actualMaxY = Math.max(actualMaxY, ev.getY() + h);
+        actualMinX = Math.min(actualMinX, ex);
+        actualMinY = Math.min(actualMinY, ey);
+        actualMaxX = Math.max(actualMaxX, ex + w);
+        actualMaxY = Math.max(actualMaxY, ey + h);
 
         // Record element bbox so repelLabels can keep relationship labels clear of element text
-        elementObstacles.add(new double[]{ev.getX() + w / 2.0, ev.getY() + h / 2.0, w, h});
+        elementObstacles.add(new double[]{ex + w / 2.0, ey + h / 2.0, w, h});
 
-        writer.writeLine(Shapes.render(view, element, style, ev.getX(), ev.getY(), w, h));
+        writer.writeLine(Shapes.render(view, element, style, ex, ey, w, h));
     }
 
     // -------------------------------------------------------------------------
@@ -517,8 +517,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         double[] boundary = boundaryRects.get(ev.getElement().getId());
         if (boundary != null) return boundary;
         ElementStyle style = findElementStyle(view, ev.getElement());
-        int[] dims = Shapes.defaultDimensions(ev.getElement(), style);
-        return new double[]{ev.getX(), ev.getY(), dims[0], dims[1]};
+        int[] rect = Shapes.elementRect(view, ev.getElement(), style, ev.getX(), ev.getY());
+        return new double[]{rect[0], rect[1], rect[2], rect[3]};
     }
 
     // -------------------------------------------------------------------------
@@ -623,13 +623,12 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             if (ev == null) continue;
 
             ElementStyle style = findElementStyle(view, element);
-            int[] dims = Shapes.defaultDimensions(element, style);
-            int w = dims[0], h = dims[1];
+            int[] rect = Shapes.elementRect(view, element, style, ev.getX(), ev.getY());
 
-            minX = Math.min(minX, ev.getX());
-            minY = Math.min(minY, ev.getY());
-            maxX = Math.max(maxX, ev.getX() + w);
-            maxY = Math.max(maxY, ev.getY() + h);
+            minX = Math.min(minX, rect[0]);
+            minY = Math.min(minY, rect[1]);
+            maxX = Math.max(maxX, rect[0] + rect[2]);
+            maxY = Math.max(maxY, rect[1] + rect[3]);
         }
 
         // Expand to include any nested child boundary rects that were already drawn
