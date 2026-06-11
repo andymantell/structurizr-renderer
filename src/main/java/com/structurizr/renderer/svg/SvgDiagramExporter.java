@@ -15,12 +15,19 @@ import java.util.List;
 public class SvgDiagramExporter extends AbstractDiagramExporter {
 
     private static final int PADDING = 50;
-    private static final int BOUNDARY_PADDING = 20;
+    private static final int BOUNDARY_PADDING = 30;
     private static final int BOUNDARY_LABEL_HEIGHT = 55; // extra bottom space for the 33px bold label + margin
+
+    // Placeholder tokens replaced in createDiagram once actual bounds are known
+    private static final String W_TOKEN = "__SVG_CANVAS_W__";
+    private static final String H_TOKEN = "__SVG_CANVAS_H__";
 
     // Per-view state (reset in writeHeader)
     private ModelView currentView;
     private Deque<BoundaryState> boundaryStack;
+    // Tracks max right/bottom edge in group (translated) space across all drawn content
+    private int actualMaxX;
+    private int actualMaxY;
 
     // -------------------------------------------------------------------------
     // Header / Footer
@@ -30,31 +37,17 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     protected void writeHeader(ModelView view, IndentingWriter writer) {
         this.currentView = view;
         this.boundaryStack = new ArrayDeque<>();
-
-        // Compute canvas from element positions + style dimensions,
-        // plus extra space for boundary rects (each nesting level adds padding + label height at bottom).
-        int maxX = 0, maxY = 0;
-        int maxNesting = 0;
-        for (ElementView ev : view.getElements()) {
-            ElementStyle style = findElementStyle(view, ev.getElement());
-            int[] dims = ElkLayoutStrategy.defaultDimensions(ev.getElement(), style);
-            maxX = Math.max(maxX, ev.getX() + dims[0]);
-            maxY = Math.max(maxY, ev.getY() + dims[1]);
-            maxNesting = Math.max(maxNesting, deploymentNestingDepth(ev.getElement()));
-        }
-        // Each boundary level adds BOUNDARY_PADDING on sides and (BOUNDARY_PADDING + BOUNDARY_LABEL_HEIGHT) at bottom.
-        int boundaryExtra = maxNesting * BOUNDARY_PADDING;
-        int boundaryBottom = maxNesting * (BOUNDARY_PADDING + BOUNDARY_LABEL_HEIGHT);
-        int cw = maxX + PADDING * 2 + boundaryExtra;
-        int ch = maxY + PADDING * 2 + boundaryBottom;
+        this.actualMaxX = 0;
+        this.actualMaxY = 0;
 
         String bg = "#ffffff";
 
-        writer.writeLine(String.format(
+        // Dimensions are placeholders; createDiagram() replaces them with actual tracked bounds.
+        writer.writeLine(
             "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" " +
-            "version=\"1.1\" width=\"%d\" height=\"%d\" viewBox=\"0 0 %d %d\">",
-            cw, ch, cw, ch));
-        writer.writeLine(String.format("<rect width=\"%d\" height=\"%d\" fill=\"%s\"/>", cw, ch, bg));
+            "version=\"1.1\" width=\"" + W_TOKEN + "\" height=\"" + H_TOKEN + "\" " +
+            "viewBox=\"0 0 " + W_TOKEN + " " + H_TOKEN + "\">");
+        writer.writeLine(String.format("<rect width=\"" + W_TOKEN + "\" height=\"" + H_TOKEN + "\" fill=\"%s\"/>", bg));
         writer.writeLine(Connectors.DEFS_BLOCK);
         writer.writeLine(String.format("<g transform=\"translate(%d,%d)\">", PADDING, PADDING));
     }
@@ -82,6 +75,9 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         ElementStyle style = findElementStyle(view, element);
         int[] dims = ElkLayoutStrategy.defaultDimensions(element, style);
         int w = dims[0], h = dims[1];
+
+        actualMaxX = Math.max(actualMaxX, ev.getX() + w);
+        actualMaxY = Math.max(actualMaxY, ev.getY() + h);
 
         writer.writeLine(Shapes.render(view, element, style, ev.getX(), ev.getY(), w, h));
     }
@@ -219,6 +215,10 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         int bh = (maxY - minY) + BOUNDARY_PADDING * 2 + BOUNDARY_LABEL_HEIGHT;
         int fontSize = 33;
 
+        // Track actual drawn extent so createDiagram() can size the canvas correctly
+        actualMaxX = Math.max(actualMaxX, bx + bw);
+        actualMaxY = Math.max(actualMaxY, by + bh);
+
         // Propagate this boundary's rect to the parent boundary (if nested)
         if (!boundaryStack.isEmpty()) {
             boundaryStack.peek().expandChildBounds(bx, by, bx + bw, by + bh);
@@ -242,18 +242,14 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
     @Override
     protected Diagram createDiagram(ModelView view, String definition) {
-        return new SvgDiagram(view, definition);
-    }
-
-    /** Count how many DeploymentNode ancestors this element has (0 for non-deployment elements). */
-    private static int deploymentNestingDepth(Element element) {
-        int depth = 0;
-        Element parent = element.getParent();
-        while (parent instanceof DeploymentNode) {
-            depth++;
-            parent = parent.getParent();
-        }
-        return depth;
+        // Replace placeholder dimensions with the actual bounds tracked during rendering.
+        // actualMaxX/Y are in group (translated) space; add PADDING for the right/bottom margins.
+        int cw = actualMaxX + PADDING * 2;
+        int ch = actualMaxY + PADDING * 2;
+        String fixed = definition
+            .replace(W_TOKEN, String.valueOf(cw))
+            .replace(H_TOKEN, String.valueOf(ch));
+        return new SvgDiagram(view, fixed);
     }
 
     // -------------------------------------------------------------------------
