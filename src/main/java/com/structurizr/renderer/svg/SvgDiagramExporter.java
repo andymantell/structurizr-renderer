@@ -61,17 +61,32 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     @Override
     protected void writeFooter(ModelView view, IndentingWriter writer) {
         // Deduplicate: dynamic views supply both a static-model RelationshipView and a
-        // dynamic-step RelationshipView for the same element pair.  When two entries share
-        // an identical path, keep the one that has a label (the dynamic step) and drop the
-        // plain static duplicate.
-        java.util.Map<String, Connectors.LabelInfo> deduped = new java.util.LinkedHashMap<>();
+        // dynamic-step RelationshipView for the same element pair, producing identical
+        // path+label entries.  Collapse those, and drop unlabelled entries that share a
+        // path with a labelled one.  Entries with the same path but DIFFERENT labels are
+        // all kept — parallel relationships ("Reads from" / "Writes to") must not lose
+        // labels; the repulsion pass separates them visually.
+        java.util.Map<String, List<Connectors.LabelInfo>> byPath = new java.util.LinkedHashMap<>();
         for (Connectors.LabelInfo li : pendingRelationships) {
-            Connectors.LabelInfo existing = deduped.get(li.pathD);
-            if (existing == null || (!existing.hasLabel && li.hasLabel)) {
-                deduped.put(li.pathD, li);
+            byPath.computeIfAbsent(li.pathD, k -> new ArrayList<>()).add(li);
+        }
+        List<Connectors.LabelInfo> deduped = new ArrayList<>();
+        for (List<Connectors.LabelInfo> group : byPath.values()) {
+            boolean anyLabelled = group.stream().anyMatch(l -> l.hasLabel);
+            if (!anyLabelled) {
+                deduped.add(group.get(0));
+                continue;
+            }
+            java.util.Set<String> seenLabels = new java.util.HashSet<>();
+            for (Connectors.LabelInfo li : group) {
+                if (!li.hasLabel) continue;
+                String labelKey = String.join("\n", li.descLines) + "|" + String.join("\n", li.techLines);
+                if (seenLabels.add(labelKey)) {
+                    deduped.add(li);
+                }
             }
         }
-        pendingRelationships = new ArrayList<>(deduped.values());
+        pendingRelationships = deduped;
 
         repelLabels(pendingRelationships, elementObstacles);
         // Two-pass render: all arrow lines first, then all labels on top.

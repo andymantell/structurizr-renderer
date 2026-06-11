@@ -50,6 +50,29 @@ class SvgDiagramExporterTest {
     }
 
     @Test
+    void parallelRelationshipsKeepBothLabels() throws Exception {
+        // Two relationships between the same element pair produce identical SVG paths;
+        // the dedup pass must not drop either label.
+        Workspace workspace = new Workspace("test", "");
+        var a = workspace.getModel().addSoftwareSystem("System A");
+        var b = workspace.getModel().addSoftwareSystem("System B");
+        a.uses(b, "Reads from");
+        a.uses(b, "Writes to");
+
+        var view = workspace.getViews().createSystemLandscapeView("landscape", "");
+        view.addAllElements();
+        view.getElementView(a).setX(100);
+        view.getElementView(a).setY(100);
+        view.getElementView(b).setX(1200);
+        view.getElementView(b).setY(100);
+
+        Diagram d = new SvgDiagramExporter().export(workspace).iterator().next();
+        String svg = d.getDefinition();
+        assertTrue(svg.contains("Reads from"), "First parallel relationship label missing");
+        assertTrue(svg.contains("Writes to"), "Second parallel relationship label missing");
+    }
+
+    @Test
     void rendersAwsAllServices() throws Exception {
         File dsl = new File("src/test/resources/fixtures/aws-all-services.dsl");
         assertTrue(dsl.exists(), "Fixture not found: " + dsl.getAbsolutePath());
