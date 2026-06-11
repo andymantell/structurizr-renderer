@@ -140,6 +140,48 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
                 }
             }
 
+            // Label vs foreign line segments.
+            // For each label, check every segment of every OTHER relationship's path.
+            // If a segment comes within the label's bounding-circle radius (plus a small
+            // buffer), push the label away from the nearest point on that segment.
+            // This prevents labels from visually hugging a line they don't belong to.
+            for (int i = 0; i < labels.size(); i++) {
+                Connectors.LabelInfo li = labels.get(i);
+                if (!li.hasLabel) continue;
+                // Exclusion radius: half-diagonal of the label rect + 12px clearance buffer
+                double clearance = Math.hypot(li.labelW / 2.0, li.labelH / 2.0) + 12;
+                for (int j = 0; j < labels.size(); j++) {
+                    if (i == j) continue;
+                    List<double[]> pts = labels.get(j).pathPoints;
+                    for (int k = 0; k < pts.size() - 1; k++) {
+                        double[] cp = closestPointOnSegment(
+                            li.labelX, li.labelY,
+                            pts.get(k)[0], pts.get(k)[1],
+                            pts.get(k + 1)[0], pts.get(k + 1)[1]);
+                        double dx = li.labelX - cp[0];
+                        double dy = li.labelY - cp[1];
+                        double dist = Math.hypot(dx, dy);
+                        if (dist < clearance) {
+                            moved = true;
+                            double force = (clearance - dist) * 0.25;
+                            if (dist > 0.1) {
+                                li.labelX += (dx / dist) * force;
+                                li.labelY += (dy / dist) * force;
+                            } else {
+                                // Exactly on the segment — push perpendicular to it
+                                double sdx = pts.get(k + 1)[0] - pts.get(k)[0];
+                                double sdy = pts.get(k + 1)[1] - pts.get(k)[1];
+                                double slen = Math.hypot(sdx, sdy);
+                                if (slen > 0) {
+                                    li.labelX += (-sdy / slen) * force;
+                                    li.labelY +=  (sdx / slen) * force;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Tethering: gently pull each label back toward its original position.
             // Applied after repulsion so it can't prevent the label from clearing an
             // obstacle, but dampens excessive drift over many iterations.
@@ -167,6 +209,16 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         a.labelX -= pushX;  a.labelY -= pushY;
         b.labelX += pushX;  b.labelY += pushY;
         return true;
+    }
+
+    /** Returns the closest point on segment (ax,ay)→(bx,by) to point (px,py). */
+    private static double[] closestPointOnSegment(double px, double py,
+                                                   double ax, double ay, double bx, double by) {
+        double dx = bx - ax, dy = by - ay;
+        double lenSq = dx * dx + dy * dy;
+        if (lenSq < 1e-10) return new double[]{ax, ay};
+        double t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+        return new double[]{ax + t * dx, ay + t * dy};
     }
 
     /** Overlap on one axis between two centred spans. Positive means they overlap. */
