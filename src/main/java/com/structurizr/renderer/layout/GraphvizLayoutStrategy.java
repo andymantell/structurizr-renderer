@@ -16,8 +16,9 @@ public class GraphvizLayoutStrategy implements LayoutStrategy {
 
     // Views containing multiple relationships between the same element pair render
     // them as spread parallel lines with staggered labels; give those views extra
-    // separation so the labels have breathing room between the boxes.
-    private static final int MIN_SEPARATION_WITH_PARALLEL_PAIRS = 600;
+    // rank separation so the labels have breathing room along the line. Node
+    // separation is left alone — inflating it scatters unrelated siblings apart.
+    private static final int MIN_RANK_SEPARATION_WITH_PARALLEL_PAIRS = 600;
 
     @Override
     public void applyLayout(Workspace workspace) throws Exception {
@@ -28,8 +29,8 @@ public class GraphvizLayoutStrategy implements LayoutStrategy {
                     && hasParallelPair(view)) {
                 view.enableAutomaticLayout(
                     al.getRankDirection(),
-                    Math.max(al.getRankSeparation(), MIN_SEPARATION_WITH_PARALLEL_PAIRS),
-                    Math.max(al.getNodeSeparation(), MIN_SEPARATION_WITH_PARALLEL_PAIRS));
+                    Math.max(al.getRankSeparation(), MIN_RANK_SEPARATION_WITH_PARALLEL_PAIRS),
+                    al.getNodeSeparation());
             }
         }
 
