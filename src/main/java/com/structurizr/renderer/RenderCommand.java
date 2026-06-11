@@ -18,10 +18,19 @@ import java.util.concurrent.Callable;
 @Command(
     name = "structurizr-renderer",
     mixinStandardHelpOptions = true,
-    version = "1.0.0",
+    versionProvider = RenderCommand.ManifestVersionProvider.class,
     description = "Render Structurizr DSL views to SVG or PNG"
 )
 public class RenderCommand implements Callable<Integer> {
+
+    /** Reads the version stamped into the JAR manifest by the release build. */
+    static class ManifestVersionProvider implements picocli.CommandLine.IVersionProvider {
+        @Override
+        public String[] getVersion() {
+            String v = RenderCommand.class.getPackage().getImplementationVersion();
+            return new String[]{"structurizr-renderer " + (v != null ? v : "(development build)")};
+        }
+    }
 
     @Parameters(index = "0", description = "Path to .dsl file")
     private File dslFile;
