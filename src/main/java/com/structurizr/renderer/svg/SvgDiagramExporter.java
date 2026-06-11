@@ -31,6 +31,12 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     // in repelLabels so relationship labels don't paint over element label text.
     // Each entry: [centerX, centerY, width, height]
     private List<double[]> elementObstacles;
+    // Computed boundary rectangles keyed by the boundary's element id (deployment
+    // nodes, software system / container boundaries).  Relationships touching these
+    // elements connect to the boundary box — the element view's own coordinates are
+    // meaningless because boundaries are sized from their children.
+    // Each entry: [x, y, width, height]
+    private java.util.Map<String, double[]> boundaryRects;
     // Tracks the bounding box of all drawn content in model space.  Min can be
     // negative (manually positioned elements / vertices); createDiagram() shifts
     // the group translate so everything lands inside the canvas.
@@ -49,6 +55,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         this.boundaryStack = new ArrayDeque<>();
         this.pendingRelationships = new ArrayList<>();
         this.elementObstacles = new ArrayList<>();
+        this.boundaryRects = new java.util.HashMap<>();
         this.actualMinX = 0;
         this.actualMinY = 0;
         this.actualMaxX = 0;
@@ -385,7 +392,21 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
         // Defer rendering: collect layout data so we can run a repulsion pass over all labels
         // before writing anything, ensuring crossing-edge labels don't overlap.
-        pendingRelationships.add(Connectors.computeLayout(rv, srcEv, dstEv, style, view));
+        pendingRelationships.add(Connectors.computeLayout(rv,
+            connectionRect(view, srcEv), connectionRect(view, dstEv), style));
+    }
+
+    /**
+     * The rectangle a relationship should connect to: the boundary box when the
+     * element is rendered as a boundary (deployment nodes etc.), otherwise the
+     * element's own box.
+     */
+    private double[] connectionRect(ModelView view, ElementView ev) {
+        double[] boundary = boundaryRects.get(ev.getElement().getId());
+        if (boundary != null) return boundary;
+        ElementStyle style = findElementStyle(view, ev.getElement());
+        int[] dims = Shapes.defaultDimensions(ev.getElement(), style);
+        return new double[]{ev.getX(), ev.getY(), dims[0], dims[1]};
     }
 
     // -------------------------------------------------------------------------
@@ -422,7 +443,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         ElementStyle style = findElementStyle(view, softwareSystem);
         String bg = style.getBackground() != null ? style.getBackground() : "#1168bd";
         String stroke = Shapes.shadeColor(bg, -10);
-        boundaryStack.push(new BoundaryState(softwareSystem.getName(), BoundaryType.SoftwareSystem, stroke, ""));
+        boundaryStack.push(new BoundaryState(softwareSystem.getName(), BoundaryType.SoftwareSystem,
+                                              stroke, "", softwareSystem.getId()));
     }
 
     @Override
@@ -437,7 +459,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         ElementStyle style = findElementStyle(view, container);
         String bg = style.getBackground() != null ? style.getBackground() : "#438dd5";
         String stroke = Shapes.shadeColor(bg, -10);
-        boundaryStack.push(new BoundaryState(container.getName(), BoundaryType.Container, stroke, ""));
+        boundaryStack.push(new BoundaryState(container.getName(), BoundaryType.Container,
+                                              stroke, "", container.getId()));
     }
 
     @Override
@@ -459,7 +482,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             iconDataUri = IconCache.toDataUri(style.getIcon());
         }
         boundaryStack.push(new BoundaryState(deploymentNode.getName(), BoundaryType.DeploymentNode,
-                                              strokeColor, "", iconDataUri));
+                                              strokeColor, "", deploymentNode.getId(), iconDataUri));
     }
 
     @Override
@@ -522,6 +545,11 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         // Propagate this boundary's rect to the parent boundary (if nested)
         if (!boundaryStack.isEmpty()) {
             boundaryStack.peek().expandChildBounds(bx, by, bx + bw, by + bh);
+        }
+
+        // Relationships to/from this boundary's element connect to the boundary box
+        if (state.elementId != null) {
+            boundaryRects.put(state.elementId, new double[]{bx, by, bw, bh});
         }
 
         String dashAttr = dashArray.isEmpty() ? "" : String.format(" stroke-dasharray=\"%s\"", dashArray);
@@ -597,19 +625,26 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         final String strokeColor;
         final String dashArray;
         final String iconDataUri;  // nullable; base64 data URI for boundary label icon
+        final String elementId;    // nullable; id of the model element this boundary represents
         final List<String> elementIds = new ArrayList<>();
         int childMinX = Integer.MAX_VALUE, childMinY = Integer.MAX_VALUE;
         int childMaxX = Integer.MIN_VALUE, childMaxY = Integer.MIN_VALUE;
 
         BoundaryState(String label, BoundaryType type, String strokeColor, String dashArray) {
-            this(label, type, strokeColor, dashArray, null);
+            this(label, type, strokeColor, dashArray, null, null);
         }
 
-        BoundaryState(String label, BoundaryType type, String strokeColor, String dashArray, String iconDataUri) {
+        BoundaryState(String label, BoundaryType type, String strokeColor, String dashArray, String elementId) {
+            this(label, type, strokeColor, dashArray, elementId, null);
+        }
+
+        BoundaryState(String label, BoundaryType type, String strokeColor, String dashArray,
+                      String elementId, String iconDataUri) {
             this.label       = label;
             this.type        = type;
             this.strokeColor = strokeColor;
             this.dashArray   = dashArray;
+            this.elementId   = elementId;
             this.iconDataUri = iconDataUri;
         }
 

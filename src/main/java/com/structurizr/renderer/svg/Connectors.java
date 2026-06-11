@@ -79,16 +79,15 @@ public class Connectors {
         }
     }
 
-    /** Compute path geometry and label position for one relationship. */
-    static LabelInfo computeLayout(RelationshipView rv, ElementView srcEv, ElementView dstEv,
-                                    RelationshipStyle style, ModelView view) {
+    /**
+     * Compute path geometry and label position for one relationship.
+     * srcRect/dstRect are {x, y, w, h} of the source/destination — either the
+     * element's box, or the boundary rectangle when the endpoint is rendered as
+     * a boundary (e.g. deployment nodes).
+     */
+    static LabelInfo computeLayout(RelationshipView rv, double[] srcRect, double[] dstRect,
+                                    RelationshipStyle style) {
         Relationship rel = rv.getRelationship();
-
-        ElementStyle srcStyle = view.getViewSet().getConfiguration().getStyles().findElementStyle(srcEv.getElement());
-        ElementStyle dstStyle = view.getViewSet().getConfiguration().getStyles().findElementStyle(dstEv.getElement());
-
-        int[] srcDims = Shapes.defaultDimensions(srcEv.getElement(), srcStyle);
-        int[] dstDims = Shapes.defaultDimensions(dstEv.getElement(), dstStyle);
 
         String rawColor  = style.getColor();
         String color     = (rawColor == null || "#707070".equalsIgnoreCase(rawColor)) ? "#444444" : rawColor;
@@ -111,9 +110,9 @@ public class Connectors {
         if (rel.getSourceId().equals(rel.getDestinationId())) {
             // Self-relationship: draw a loop bulging out from the element's right edge,
             // exiting a third of the way down and re-entering two thirds of the way down.
-            double ex   = srcEv.getX() + srcDims[0];
-            double topY = srcEv.getY() + srcDims[1] / 3.0;
-            double botY = srcEv.getY() + srcDims[1] * 2 / 3.0;
+            double ex   = srcRect[0] + srcRect[2];
+            double topY = srcRect[1] + srcRect[3] / 3.0;
+            double botY = srcRect[1] + srcRect[3] * 2 / 3.0;
             double ext  = 180;
             pathD = String.format("M %.1f %.1f C %.1f %.1f %.1f %.1f %.1f %.1f",
                 ex, topY, ex + ext, topY, ex + ext, botY, ex, botY);
@@ -125,13 +124,13 @@ public class Connectors {
             labelX = ex + ext * 0.75;
             labelY = (topY + botY) / 2.0;
         } else {
-            double x1 = srcEv.getX() + srcDims[0] / 2.0;
-            double y1 = srcEv.getY() + srcDims[1] / 2.0;
-            double x2 = dstEv.getX() + dstDims[0] / 2.0;
-            double y2 = dstEv.getY() + dstDims[1] / 2.0;
+            double x1 = srcRect[0] + srcRect[2] / 2.0;
+            double y1 = srcRect[1] + srcRect[3] / 2.0;
+            double x2 = dstRect[0] + dstRect[2] / 2.0;
+            double y2 = dstRect[1] + dstRect[3] / 2.0;
 
-            double[] p1 = clipToRect(x1, y1, x2, y2, srcEv.getX(), srcEv.getY(), srcDims[0], srcDims[1]);
-            double[] p2 = clipToRect(x2, y2, x1, y1, dstEv.getX(), dstEv.getY(), dstDims[0], dstDims[1]);
+            double[] p1 = clipToRect(x1, y1, x2, y2, srcRect[0], srcRect[1], srcRect[2], srcRect[3]);
+            double[] p2 = clipToRect(x2, y2, x1, y1, dstRect[0], dstRect[1], dstRect[2], dstRect[3]);
 
             // Build the ordered list of path points (clipped endpoints + waypoints) once,
             // for both path-string construction and crossing detection.
@@ -243,13 +242,6 @@ public class Connectors {
         return sb.toString();
     }
 
-    /** Convenience wrapper: compute then immediately render (no overlap correction). */
-    static String render(RelationshipView rv, ElementView srcEv, ElementView dstEv,
-                         RelationshipStyle style, ModelView view) {
-        LabelInfo li = computeLayout(rv, srcEv, dstEv, style, view);
-        return "<g>\n" + renderPath(li) + renderLabel(li) + "</g>\n";
-    }
-
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
@@ -293,7 +285,7 @@ public class Connectors {
     }
 
     private static double[] clipToRect(double x1, double y1, double x2, double y2,
-                                        int rx, int ry, int rw, int rh) {
+                                        double rx, double ry, double rw, double rh) {
         double dx = x2 - x1;
         double dy = y2 - y1;
         double bestT = Double.MAX_VALUE;
