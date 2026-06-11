@@ -83,6 +83,12 @@ public class RenderCommand implements Callable<Integer> {
         // Render
         Collection<Diagram> diagrams = new SvgDiagramExporter().export(workspace);
 
+        if (!viewKey.isEmpty() && diagrams.stream().noneMatch(d -> d.getKey().equals(viewKey))) {
+            System.err.println("Error: no view with key '" + viewKey + "'. Available views: "
+                + String.join(", ", diagrams.stream().map(Diagram::getKey).toList()));
+            return 1;
+        }
+
         for (Diagram diagram : diagrams) {
             if (!viewKey.isEmpty() && !diagram.getKey().equals(viewKey)) continue;
 
