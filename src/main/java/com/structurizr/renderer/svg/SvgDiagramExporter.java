@@ -56,9 +56,18 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     @Override
     protected void writeFooter(ModelView view, IndentingWriter writer) {
         repelLabels(pendingRelationships);
+        // Two-pass render: all arrow lines first, then all labels on top.
+        // This guarantees no line from relationship B can paint over the label of relationship A.
+        writer.writeLine("<g id=\"edges\">");
         for (Connectors.LabelInfo li : pendingRelationships) {
-            writer.writeLine(Connectors.renderLayout(li));
+            writer.writeLine(Connectors.renderPath(li));
         }
+        writer.writeLine("</g>");
+        writer.writeLine("<g id=\"edge-labels\">");
+        for (Connectors.LabelInfo li : pendingRelationships) {
+            writer.writeLine(Connectors.renderLabel(li));
+        }
+        writer.writeLine("</g>");
         pendingRelationships.clear();
 
         writer.writeLine("</g>");

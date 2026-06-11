@@ -185,44 +185,48 @@ public class Connectors {
                              labelW, labelH);
     }
 
-    /** Render one relationship to SVG using (potentially adjusted) label position. */
-    static String renderLayout(LabelInfo li) {
+    /** Render only the path line (arrow) for one relationship. */
+    static String renderPath(LabelInfo li) {
+        return String.format(
+            "<path d=\"%s\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"%s marker-end=\"url(#arrow)\"/>\n",
+            li.pathD, li.color, li.thickness, li.dashAttr);
+    }
+
+    /**
+     * Render only the label (background rect + text) for one relationship.
+     * Called in a separate pass after all paths so labels always appear on top of lines.
+     */
+    static String renderLabel(LabelInfo li) {
+        if (!li.hasLabel) return "";
         StringBuilder sb = new StringBuilder();
+        // One background rect covers the whole label block so that when two labels overlap
+        // the later-drawn one fully blanks the earlier one rather than leaving scrambled text.
+        double blockTop = li.labelY - li.labelH / 2.0;
         sb.append(String.format(
-            "<g>\n<path d=\"%s\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"%s marker-end=\"url(#arrow)\"/>\n",
-            li.pathD, li.color, li.thickness, li.dashAttr));
+            "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"2\" fill=\"#ffffff\"/>\n",
+            li.labelX - li.labelW / 2.0, blockTop, li.labelW, li.labelH));
 
-        if (li.hasLabel) {
-            // One background rect covers the whole label block so that when two labels overlap
-            // the later-drawn one fully blanks the earlier one rather than leaving scrambled text.
-            double blockTop = li.labelY - li.labelH / 2.0;
+        double textY = blockTop + li.descLineH;
+        for (String line : li.descLines) {
             sb.append(String.format(
-                "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"2\" fill=\"#ffffff\"/>\n",
-                li.labelX - li.labelW / 2.0, blockTop, li.labelW, li.labelH));
-
-            double textY = blockTop + li.descLineH;
-            for (String line : li.descLines) {
-                sb.append(String.format(
-                    "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
-                    li.labelX, textY, Shapes.DEFAULT_FONT, li.fontSize, li.color, Shapes.htmlEscape(line)));
-                textY += li.descLineH;
-            }
-            for (String line : li.techLines) {
-                sb.append(String.format(
-                    "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" font-style=\"italic\" fill=\"%s\">%s</text>\n",
-                    li.labelX, textY, Shapes.DEFAULT_FONT, li.techFontSize, li.color, Shapes.htmlEscape(line)));
-                textY += li.techLineH;
-            }
+                "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
+                li.labelX, textY, Shapes.DEFAULT_FONT, li.fontSize, li.color, Shapes.htmlEscape(line)));
+            textY += li.descLineH;
         }
-
-        sb.append("</g>\n");
+        for (String line : li.techLines) {
+            sb.append(String.format(
+                "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" font-style=\"italic\" fill=\"%s\">%s</text>\n",
+                li.labelX, textY, Shapes.DEFAULT_FONT, li.techFontSize, li.color, Shapes.htmlEscape(line)));
+            textY += li.techLineH;
+        }
         return sb.toString();
     }
 
     /** Convenience wrapper: compute then immediately render (no overlap correction). */
     static String render(RelationshipView rv, ElementView srcEv, ElementView dstEv,
                          RelationshipStyle style, ModelView view) {
-        return renderLayout(computeLayout(rv, srcEv, dstEv, style, view));
+        LabelInfo li = computeLayout(rv, srcEv, dstEv, style, view);
+        return "<g>\n" + renderPath(li) + renderLabel(li) + "</g>\n";
     }
 
     // -------------------------------------------------------------------------
