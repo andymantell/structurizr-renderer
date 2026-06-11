@@ -93,10 +93,13 @@ public class Connectors {
      * a boundary (e.g. deployment nodes).
      * (offsetX, offsetY) shifts the whole line sideways before clipping, used to
      * spread multiple relationships between the same element pair into visually
-     * distinct parallel lines.
+     * distinct parallel lines.  positionOverride (nullable) replaces the style's
+     * label position percentage, used to stagger the labels of spread lines so
+     * they don't start on top of each other.
      */
     static LabelInfo computeLayout(RelationshipView rv, double[] srcRect, double[] dstRect,
-                                    RelationshipStyle style, double offsetX, double offsetY) {
+                                    RelationshipStyle style, double offsetX, double offsetY,
+                                    Integer positionOverride) {
         Relationship rel = rv.getRelationship();
 
         String rawColor  = style.getColor();
@@ -107,7 +110,8 @@ public class Connectors {
         // Default to 25% (near source) rather than 50% (midpoint).
         // Labels near the source end are above the region where edges typically cross,
         // and the repulsion+crossing-avoidance pass then fine-tunes positions.
-        int position     = style.getPosition()  != null ? style.getPosition()  : 25;
+        int position     = positionOverride != null ? positionOverride
+                         : style.getPosition()  != null ? style.getPosition()  : 25;
         int fontSize     = style.getFontSize()  != null ? style.getFontSize()  : 24;
 
         String dashAttr = dashed ? " stroke-dasharray=\"8 8\"" : "";

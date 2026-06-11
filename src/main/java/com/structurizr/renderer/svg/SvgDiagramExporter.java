@@ -217,16 +217,26 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             double len = Math.hypot(dx, dy);
             if (len < 1) continue;
             double px = -dy / len, py = dx / len;
+            String canonicalSrc = PendingRel.centerKey(a);
             for (int i = 0; i < group.size(); i++) {
+                PendingRel pr = group.get(i);
                 double off = (i - (group.size() - 1) / 2.0) * PARALLEL_SPACING;
-                offsets.put(group.get(i), new double[]{px * off, py * off});
+                // Stagger labels along the line (at thirds for a pair) in the pair's
+                // canonical frame so a request label and its response label don't
+                // both start at the same point of the corridor.
+                int fraction = (int) Math.round(100.0 * (i + 1) / (group.size() + 1));
+                boolean canonical = PendingRel.centerKey(pr.srcRect()).equals(canonicalSrc);
+                int ownPosition = canonical ? fraction : 100 - fraction;
+                offsets.put(pr, new double[]{px * off, py * off, ownPosition});
             }
         }
 
         for (PendingRel pr : rels) {
-            double[] off = offsets.getOrDefault(pr, new double[]{0, 0});
-            pendingRelationships.add(
-                Connectors.computeLayout(pr.rv, pr.srcRect, pr.dstRect, pr.style, off[0], off[1]));
+            double[] off = offsets.get(pr);
+            pendingRelationships.add(off == null
+                ? Connectors.computeLayout(pr.rv, pr.srcRect, pr.dstRect, pr.style, 0, 0, null)
+                : Connectors.computeLayout(pr.rv, pr.srcRect, pr.dstRect, pr.style,
+                                           off[0], off[1], (int) off[2]));
         }
     }
 
