@@ -1,0 +1,13 @@
+The AWS service icons in this directory are provided by Amazon Web Services
+and are subject to the AWS Trademark Guidelines:
+  https://aws.amazon.com/trademark-guidelines/
+
+They may be used to create architecture diagrams that depict how AWS services
+work together, which is the sole purpose of these test fixtures.
+
+These icons are NOT part of the Apache 2.0 license covering the
+structurizr-renderer source code.
+
+Source: https://aws.amazon.com/architecture/icons/
+Hosted by the Structurizr project at:
+  https://static.structurizr.com/themes/amazon-web-services-2020.04.30/

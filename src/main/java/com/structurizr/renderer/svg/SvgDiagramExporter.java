@@ -160,7 +160,16 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     @Override
     protected void startDeploymentNodeBoundary(DeploymentView view, DeploymentNode deploymentNode,
                                                IndentingWriter writer) {
-        boundaryStack.push(new BoundaryState(deploymentNode.getName(), BoundaryType.DeploymentNode, "#444444", ""));
+        ElementStyle style = findElementStyle(view, deploymentNode);
+        String strokeColor = style.getStroke() != null ? style.getStroke()
+                           : style.getColor()  != null ? style.getColor()
+                           : "#444444";
+        String iconDataUri = null;
+        if (style.getIcon() != null && !style.getIcon().isBlank()) {
+            iconDataUri = IconCache.toDataUri(style.getIcon());
+        }
+        boundaryStack.push(new BoundaryState(deploymentNode.getName(), BoundaryType.DeploymentNode,
+                                              strokeColor, "", iconDataUri));
     }
 
     @Override
@@ -228,11 +237,27 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             "<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"0\" " +
             "fill=\"none\" stroke=\"%s\" stroke-width=\"2\"%s/>",
             bx, by, bw, bh, strokeColor, dashAttr));
-        writer.writeLine(String.format(
-            "<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"%d\" " +
-            "font-weight=\"bold\" fill=\"%s\">%s</text>",
-            bx + 15, by + bh - 15, Shapes.DEFAULT_FONT, fontSize,
-            strokeColor, Shapes.htmlEscape(state.label)));
+
+        if (state.iconDataUri != null) {
+            // Small icon to the left of the label at the bottom of the boundary box
+            int iconSize = 36;
+            int iconX    = bx + 8;
+            int iconY    = by + bh - iconSize - 8;
+            writer.writeLine(String.format(
+                "<image x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" href=\"%s\" xlink:href=\"%s\"/>",
+                iconX, iconY, iconSize, iconSize, state.iconDataUri, state.iconDataUri));
+            writer.writeLine(String.format(
+                "<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"%d\" " +
+                "font-weight=\"bold\" fill=\"%s\">%s</text>",
+                iconX + iconSize + 6, by + bh - 15, Shapes.DEFAULT_FONT, fontSize,
+                strokeColor, Shapes.htmlEscape(state.label)));
+        } else {
+            writer.writeLine(String.format(
+                "<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"%d\" " +
+                "font-weight=\"bold\" fill=\"%s\">%s</text>",
+                bx + 15, by + bh - 15, Shapes.DEFAULT_FONT, fontSize,
+                strokeColor, Shapes.htmlEscape(state.label)));
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -262,15 +287,21 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         final BoundaryType type;
         final String strokeColor;
         final String dashArray;
+        final String iconDataUri;  // nullable; base64 data URI for boundary label icon
         final List<String> elementIds = new ArrayList<>();
         int childMinX = Integer.MAX_VALUE, childMinY = Integer.MAX_VALUE;
         int childMaxX = Integer.MIN_VALUE, childMaxY = Integer.MIN_VALUE;
 
         BoundaryState(String label, BoundaryType type, String strokeColor, String dashArray) {
+            this(label, type, strokeColor, dashArray, null);
+        }
+
+        BoundaryState(String label, BoundaryType type, String strokeColor, String dashArray, String iconDataUri) {
             this.label       = label;
             this.type        = type;
             this.strokeColor = strokeColor;
             this.dashArray   = dashArray;
+            this.iconDataUri = iconDataUri;
         }
 
         void addElement(String id) { elementIds.add(id); }

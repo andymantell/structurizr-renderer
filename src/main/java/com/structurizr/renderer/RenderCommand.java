@@ -5,6 +5,7 @@ import com.structurizr.dsl.StructurizrDslParser;
 import com.structurizr.export.Diagram;
 import com.structurizr.renderer.layout.LayoutStrategyFactory;
 import com.structurizr.renderer.svg.SvgDiagramExporter;
+import com.structurizr.renderer.svg.ThemeCache;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -55,6 +56,9 @@ public class RenderCommand implements Callable<Integer> {
         StructurizrDslParser parser = new StructurizrDslParser();
         parser.parse(dslFile);
         Workspace workspace = parser.getWorkspace();
+
+        // Load themes (downloads once, then serves from disk cache)
+        ThemeCache.loadThemes(workspace);
 
         // Apply layout
         if (!noAutolayout) {

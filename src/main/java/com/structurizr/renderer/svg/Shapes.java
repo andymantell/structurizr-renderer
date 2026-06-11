@@ -47,6 +47,11 @@ public class Shapes {
         };
     }
 
+    // Vertical space reserved for an icon at the top of a box (icon + top/bottom padding)
+    private static final int ICON_SIZE = 56;
+    private static final int ICON_PAD  = 8;
+    private static final int ICON_AREA = ICON_SIZE + ICON_PAD * 2;
+
     // -------------------------------------------------------------------------
     // Box / RoundedBox (rx=0 for Box, rx=15 for RoundedBox)
     // -------------------------------------------------------------------------
@@ -58,11 +63,27 @@ public class Shapes {
 
         StringBuilder sb = new StringBuilder();
         sb.append(openGroup(element));
-        // Main rect
         sb.append(String.format(
             "<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             x, y, w, h, rx, bg, stroke, sw));
-        sb.append(renderBoxText(view, element, style, x, y, w, h));
+
+        int textY = y;
+        int textH = h;
+        String iconUrl = style.getIcon();
+        if (iconUrl != null && !iconUrl.isBlank()) {
+            String dataUri = IconCache.toDataUri(iconUrl);
+            if (dataUri != null) {
+                int iconX = x + (w - ICON_SIZE) / 2;
+                int iconY = y + ICON_PAD;
+                sb.append(String.format(
+                    "<image x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" href=\"%s\" xlink:href=\"%s\"/>\n",
+                    iconX, iconY, ICON_SIZE, ICON_SIZE, dataUri, dataUri));
+                textY = y + ICON_AREA;
+                textH = h - ICON_AREA;
+            }
+        }
+
+        sb.append(renderBoxText(view, element, style, x, textY, w, textH));
         sb.append("</g>\n");
         return sb.toString();
     }
@@ -529,9 +550,9 @@ public class Shapes {
     }
 
     private static String stroke(ElementStyle style, String bg) {
-        // Derive stroke from background at -10% shade, matching the reference renderer.
-        // The Structurizr library's auto-computed stroke uses a different (darker) formula,
-        // so we compute independently. User-set strokes are respected if they look non-default.
+        if (style.getStroke() != null && !style.getStroke().isBlank()) {
+            return style.getStroke();
+        }
         return shadeColor(bg, -10);
     }
 
