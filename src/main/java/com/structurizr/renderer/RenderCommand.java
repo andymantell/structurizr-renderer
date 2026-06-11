@@ -45,10 +45,19 @@ public class RenderCommand implements Callable<Integer> {
             description = "Skip automatic layout even when the DSL requests it")
     private boolean noAutolayout;
 
+    @Option(names = {"--proxy"},
+            description = "HTTP(S) proxy used when downloading non-bundled themes or icons, "
+                        + "e.g. http://proxy.example.com:8080 or proxy.example.com:8080")
+    private String proxy;
+
     @Override
     public Integer call() throws Exception {
         if (!dslFile.exists()) {
             System.err.println("Error: file not found: " + dslFile);
+            return 1;
+        }
+
+        if (proxy != null && !proxy.isBlank() && !configureProxy(proxy)) {
             return 1;
         }
 
@@ -108,5 +117,26 @@ public class RenderCommand implements Callable<Integer> {
         }
 
         return 0;
+    }
+
+    /**
+     * Routes all HTTP(S) connections (theme/icon downloads) through the given proxy
+     * by setting the standard JVM proxy system properties.
+     */
+    private static boolean configureProxy(String proxy) {
+        String spec = proxy.contains("://") ? proxy : "http://" + proxy;
+        java.net.URI uri = java.net.URI.create(spec);
+        String host = uri.getHost();
+        int port = uri.getPort();
+        if (host == null || port == -1) {
+            System.err.println("Error: invalid proxy '" + proxy + "'. Expected host:port, "
+                + "e.g. proxy.example.com:8080");
+            return false;
+        }
+        System.setProperty("http.proxyHost",  host);
+        System.setProperty("http.proxyPort",  String.valueOf(port));
+        System.setProperty("https.proxyHost", host);
+        System.setProperty("https.proxyPort", String.valueOf(port));
+        return true;
     }
 }
