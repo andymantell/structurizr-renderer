@@ -54,24 +54,59 @@ public class Connectors {
         double labelX, labelY;
 
         if (!routingVertices.isEmpty()) {
-            // ELK stores the full edge path: [port_exit, ...bends..., port_entry].
-            // Use those directly as the path — don't re-apply clipToRect, which would
-            // misalign with ELK's horizontal port exits and produce a jog at each end.
             List<Vertex> vList = new ArrayList<>(routingVertices);
-            Vertex first = vList.get(0);
-            Vertex last  = vList.get(vList.size() - 1);
-            StringBuilder path = new StringBuilder();
-            path.append(String.format("M %d %d", first.getX(), first.getY()));
-            for (int vi = 1; vi < vList.size(); vi++) {
-                path.append(String.format(" L %d %d", vList.get(vi).getX(), vList.get(vi).getY()));
+
+            if (vList.get(0).getX() == Integer.MIN_VALUE) {
+                // ELK SPLINES mode: [sentinel, start, CP1, CP2, ep1, ..., end]
+                // bend points after start are cubic bezier control points (3 per segment).
+                // end == ep_last (duplicates last bezier endpoint; needed for 0-bend fallback).
+                List<Vertex> pts = vList.subList(1, vList.size()); // [start, CP1, CP2, ep1, ..., end]
+                Vertex startV = pts.get(0);
+                Vertex endV   = pts.get(pts.size() - 1);
+                int bendCount = pts.size() - 2; // everything between start and end
+
+                StringBuilder path = new StringBuilder();
+                path.append(String.format("M %d %d", startV.getX(), startV.getY()));
+
+                if (bendCount > 0 && bendCount % 3 == 0) {
+                    // Bezier segments: groups of (CP1, CP2, endpoint) starting at pts[1]
+                    for (int vi = 1; vi + 2 < pts.size(); vi += 3) {
+                        path.append(String.format(" C %d %d %d %d %d %d",
+                            pts.get(vi).getX(),   pts.get(vi).getY(),
+                            pts.get(vi+1).getX(), pts.get(vi+1).getY(),
+                            pts.get(vi+2).getX(), pts.get(vi+2).getY()));
+                    }
+                } else {
+                    // 0-bend direct connection or unexpected count: straight line
+                    path.append(String.format(" L %d %d", endV.getX(), endV.getY()));
+                }
+                pathD = path.toString();
+                // Label: walk on-curve points (start + each bezier endpoint at index 3,6,9,...)
+                List<double[]> onCurve = new ArrayList<>();
+                for (int vi = 0; vi < pts.size() - 1; vi += 3) {
+                    onCurve.add(new double[]{pts.get(vi).getX(), pts.get(vi).getY()});
+                }
+                onCurve.add(new double[]{endV.getX(), endV.getY()});
+                double[] lpos = polylineOnCurveAtFraction(onCurve, position / 100.0);
+                labelX = lpos[0];
+                labelY = lpos[1] - 6;
+            } else {
+                // Legacy orthogonal/polyline mode: vertices are [start, ...bends..., end].
+                Vertex first = vList.get(0);
+                Vertex last  = vList.get(vList.size() - 1);
+                StringBuilder path = new StringBuilder();
+                path.append(String.format("M %d %d", first.getX(), first.getY()));
+                for (int vi = 1; vi < vList.size(); vi++) {
+                    path.append(String.format(" L %d %d", vList.get(vi).getX(), vList.get(vi).getY()));
+                }
+                pathD = path.toString();
+                double[] fp = {first.getX(), first.getY()};
+                double[] lp = {last.getX(),  last.getY()};
+                Collection<Vertex> midVerts = vList.subList(1, vList.size() - 1);
+                double[] lpos = polylinePointAtFraction(fp, midVerts, lp, position / 100.0);
+                labelX = lpos[0];
+                labelY = lpos[1] - 6;
             }
-            pathD = path.toString();
-            double[] fp = {first.getX(), first.getY()};
-            double[] lp = {last.getX(),  last.getY()};
-            Collection<Vertex> midVerts = vList.subList(1, vList.size() - 1);
-            double[] lpos = polylinePointAtFraction(fp, midVerts, lp, position / 100.0);
-            labelX = lpos[0];
-            labelY = lpos[1] - 6;
         } else if (routing == Routing.Curved) {
             double midX = (p1[0] + p2[0]) / 2;
             double midY = (p1[1] + p2[1]) / 2;
@@ -143,6 +178,29 @@ public class Connectors {
 
         sb.append("</g>\n");
         return sb.toString();
+    }
+
+    /** Walk a list of on-curve points (pre-computed, as double[]) by arc-length fraction. */
+    private static double[] polylineOnCurveAtFraction(List<double[]> pts, double fraction) {
+        double totalLen = 0;
+        for (int i = 0; i < pts.size() - 1; i++) {
+            double dx = pts.get(i+1)[0] - pts.get(i)[0];
+            double dy = pts.get(i+1)[1] - pts.get(i)[1];
+            totalLen += Math.sqrt(dx*dx + dy*dy);
+        }
+        double target = totalLen * fraction;
+        double cum = 0;
+        for (int i = 0; i < pts.size() - 1; i++) {
+            double dx = pts.get(i+1)[0] - pts.get(i)[0];
+            double dy = pts.get(i+1)[1] - pts.get(i)[1];
+            double seg = Math.sqrt(dx*dx + dy*dy);
+            if (cum + seg >= target) {
+                double t = seg > 0 ? (target - cum) / seg : 0;
+                return new double[]{pts.get(i)[0] + t*dx, pts.get(i)[1] + t*dy};
+            }
+            cum += seg;
+        }
+        return pts.get(pts.size() - 1);
     }
 
     private static double[] polylinePointAtFraction(double[] p1, Collection<Vertex> vertices,

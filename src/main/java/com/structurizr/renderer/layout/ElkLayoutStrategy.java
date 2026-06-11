@@ -10,6 +10,7 @@ import org.eclipse.elk.core.RecursiveGraphLayoutEngine;
 import org.eclipse.elk.core.data.LayoutMetaDataService;
 import org.eclipse.elk.core.options.CoreOptions;
 import org.eclipse.elk.core.options.Direction;
+import org.eclipse.elk.core.options.EdgeRouting;
 import org.eclipse.elk.core.util.BasicProgressMonitor;
 import org.eclipse.elk.graph.ElkBendPoint;
 import org.eclipse.elk.graph.ElkEdge;
@@ -55,6 +56,7 @@ public class ElkLayoutStrategy implements LayoutStrategy {
         ElkNode root = ElkGraphUtil.createGraph();
         root.setProperty(CoreOptions.ALGORITHM, "org.eclipse.elk.layered");
         root.setProperty(CoreOptions.DIRECTION, toElkDirection(al.getRankDirection()));
+        root.setProperty(CoreOptions.EDGE_ROUTING, EdgeRouting.SPLINES);
         root.setProperty(LayeredOptions.SPACING_NODE_NODE_BETWEEN_LAYERS, (double) al.getRankSeparation());
         root.setProperty(LayeredOptions.SPACING_NODE_NODE, (double) al.getNodeSeparation());
 
@@ -99,20 +101,24 @@ public class ElkLayoutStrategy implements LayoutStrategy {
             }
         }
 
-        // Store ELK's full edge path (port exit → bend points → port entry).
-        // Including bend points is essential: ELK routes edges through separate channels to avoid
-        // crossings, but only when all waypoints are preserved. Throwing away bends and drawing
-        // straight diagonals discards that crossing-avoidance work and creates a tangled mess.
+        // Store ELK's spline path. ELK SPLINES routing produces cubic bezier control points as
+        // bend points (3 per segment: CP1, CP2, on-curve endpoint). We prefix the list with a
+        // sentinel vertex at (MIN_VALUE, MIN_VALUE) so Connectors.java can distinguish spline
+        // mode from legacy orthogonal-polyline vertices and render SVG 'C' commands.
         for (int i = 0; i < rvList.size(); i++) {
             RelationshipView rv = rvList.get(i);
             ElkEdge edge = edgeList.get(i);
             if (!edge.getSections().isEmpty()) {
                 ElkEdgeSection section = edge.getSections().get(0);
                 List<Vertex> vertices = new ArrayList<>();
+                // Sentinel marks this as a spline path (bend points are bezier CPs, not corners)
+                vertices.add(new Vertex(Integer.MIN_VALUE, Integer.MIN_VALUE));
                 vertices.add(new Vertex((int) section.getStartX(), (int) section.getStartY()));
                 for (ElkBendPoint bp : section.getBendPoints()) {
                     vertices.add(new Vertex((int) bp.getX(), (int) bp.getY()));
                 }
+                // Always store the endpoint. For splines with n segments it duplicates the last
+                // bezier endpoint, but it lets the renderer draw a straight line for 0-bend edges.
                 vertices.add(new Vertex((int) section.getEndX(), (int) section.getEndY()));
                 rv.setVertices(vertices);
             }
