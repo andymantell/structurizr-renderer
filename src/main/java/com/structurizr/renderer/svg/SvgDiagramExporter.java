@@ -23,9 +23,10 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     private static final String TX_TOKEN = "__SVG_TRANSLATE_X__";
     private static final String TY_TOKEN = "__SVG_TRANSLATE_Y__";
 
-    // Spacing between parallel lines when multiple relationships connect the
-    // same element pair (e.g. a request and its response).
-    private static final double PARALLEL_SPACING = 60;
+    // Corridor spacing between parallel lines when multiple relationships connect
+    // the same element pair (e.g. a request and its response).  Lines leave the
+    // boxes at ~35% of this offset and kink out to the full corridor.
+    private static final double PARALLEL_SPACING = 80;
 
     // Per-view state (reset in writeHeader)
     private ModelView currentView;

@@ -137,6 +137,42 @@ public class Connectors {
             // reaches ex + 0.75*ext)
             labelX = ex + ext * 0.75;
             labelY = (topY + botY) / 2.0;
+        } else if ((offsetX != 0 || offsetY != 0) && routingVertices.isEmpty()
+                   && routing != Routing.Curved) {
+            // Spread member: kinked route like the reference renderer. The line leaves
+            // the box close to the natural anchor (a fraction of the offset), jogs out
+            // to the parallel corridor (the full offset), runs along it, and jogs back
+            // in — giving the pair's lines and labels real separation in the middle.
+            double eoX = offsetX * 0.35, eoY = offsetY * 0.35;
+            double x1 = srcRect[0] + srcRect[2] / 2.0 + eoX;
+            double y1 = srcRect[1] + srcRect[3] / 2.0 + eoY;
+            double x2 = dstRect[0] + dstRect[2] / 2.0 + eoX;
+            double y2 = dstRect[1] + dstRect[3] / 2.0 + eoY;
+
+            double[] p1 = clipToRect(x1, y1, x2, y2, srcRect[0], srcRect[1], srcRect[2], srcRect[3]);
+            double[] p2 = clipToRect(x2, y2, x1, y1, dstRect[0], dstRect[1], dstRect[2], dstRect[3]);
+
+            double ddx = p2[0] - p1[0], ddy = p2[1] - p1[1];
+            double len = Math.hypot(ddx, ddy);
+            double inset = Math.min(80, len / 4);
+            double ux = len > 0 ? ddx / len : 0, uy = len > 0 ? ddy / len : 0;
+            double corrX = offsetX - eoX, corrY = offsetY - eoY;
+
+            pathPoints.add(p1);
+            pathPoints.add(new double[]{p1[0] + ux * inset + corrX, p1[1] + uy * inset + corrY});
+            pathPoints.add(new double[]{p2[0] - ux * inset + corrX, p2[1] - uy * inset + corrY});
+            pathPoints.add(p2);
+
+            StringBuilder path = new StringBuilder();
+            path.append(String.format("M %.1f %.1f", p1[0], p1[1]));
+            for (int i = 1; i < pathPoints.size(); i++) {
+                path.append(String.format(" L %.1f %.1f", pathPoints.get(i)[0], pathPoints.get(i)[1]));
+            }
+            pathD = path.toString();
+
+            double[] lpos = pathPointAtFraction(pathPoints, position / 100.0);
+            labelX = lpos[0];
+            labelY = lpos[1] - 6;
         } else {
             double x1 = srcRect[0] + srcRect[2] / 2.0 + offsetX;
             double y1 = srcRect[1] + srcRect[3] / 2.0 + offsetY;
@@ -270,7 +306,11 @@ public class Connectors {
         pts.add(p1);
         for (Vertex v : vertices) pts.add(new double[]{v.getX(), v.getY()});
         pts.add(p2);
+        return pathPointAtFraction(pts, fraction);
+    }
 
+    /** Point at the given length fraction along a polyline. */
+    private static double[] pathPointAtFraction(List<double[]> pts, double fraction) {
         double totalLen = 0;
         for (int i = 0; i < pts.size() - 1; i++) {
             double dx = pts.get(i + 1)[0] - pts.get(i)[0];

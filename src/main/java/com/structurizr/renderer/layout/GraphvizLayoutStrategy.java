@@ -17,7 +17,7 @@ public class GraphvizLayoutStrategy implements LayoutStrategy {
     // Views containing multiple relationships between the same element pair render
     // them as spread parallel lines with staggered labels; give those views extra
     // separation so the labels have breathing room between the boxes.
-    private static final int MIN_SEPARATION_WITH_PARALLEL_PAIRS = 450;
+    private static final int MIN_SEPARATION_WITH_PARALLEL_PAIRS = 600;
 
     @Override
     public void applyLayout(Workspace workspace) throws Exception {
