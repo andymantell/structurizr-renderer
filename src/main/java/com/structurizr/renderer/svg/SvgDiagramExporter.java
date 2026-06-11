@@ -486,6 +486,29 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
             if (!moved) break;
         }
+
+        // Final hard pass: arrowhead visibility wins over everything. Any label
+        // still overlapping a tip zone is pushed fully clear along the axis of
+        // least penetration, with nothing pulling it back afterwards.
+        for (Connectors.LabelInfo li : labels) {
+            if (!li.hasLabel) continue;
+            for (int attempt = 0; attempt < 10; attempt++) {
+                boolean clear = true;
+                for (double[] tip : arrowTips) {
+                    double ox = overlapAxis(li.labelX, li.labelW, tip[0], TIP_W);
+                    double oy = overlapAxis(li.labelY, li.labelH, tip[1], TIP_H);
+                    if (ox > 0 && oy > 0) {
+                        clear = false;
+                        if (ox < oy) {
+                            li.labelX += li.labelX >= tip[0] ? ox + 2 : -(ox + 2);
+                        } else {
+                            li.labelY += li.labelY >= tip[1] ? oy + 2 : -(oy + 2);
+                        }
+                    }
+                }
+                if (clear) break;
+            }
+        }
     }
 
     private static boolean repelPair(Connectors.LabelInfo a, Connectors.LabelInfo b) {
