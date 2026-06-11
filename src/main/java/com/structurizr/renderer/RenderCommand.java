@@ -61,6 +61,14 @@ public class RenderCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+        String fmt = format.toLowerCase(java.util.Locale.ROOT);
+        boolean doSvg = fmt.equals("svg") || fmt.equals("both");
+        boolean doPng = fmt.equals("png") || fmt.equals("both");
+        if (!doSvg && !doPng) {
+            System.err.println("Error: unknown format '" + format + "'. Use svg, png, or both.");
+            return 1;
+        }
+
         if (!dslFile.exists()) {
             System.err.println("Error: file not found: " + dslFile);
             return 1;
@@ -89,14 +97,6 @@ public class RenderCommand implements Callable<Integer> {
             ? dslFile.getAbsoluteFile().getParentFile()
             : new File(outputDir);
         outDir.mkdirs();
-
-        boolean doSvg = format.equals("svg") || format.equals("both");
-        boolean doPng = format.equals("png") || format.equals("both");
-
-        if (!doSvg && !doPng) {
-            System.err.println("Error: unknown format '" + format + "'. Use svg, png, or both.");
-            return 1;
-        }
 
         // Render
         Collection<Diagram> diagrams = new SvgDiagramExporter().export(workspace);
