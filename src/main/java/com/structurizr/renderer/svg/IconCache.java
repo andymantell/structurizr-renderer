@@ -43,7 +43,7 @@ public class IconCache {
      */
     public static String toDataUri(String url) {
         if (url == null || url.isBlank()) return null;
-        // Already a data URI — return as-is (happens when ThemeUtils inlines local icons)
+        // Already a data URI — return as-is (happens when ThemeUtils inlines icons)
         if (url.startsWith("data:")) return url;
         String result = MEMORY_CACHE.computeIfAbsent(url, IconCache::fetchWithDiskCache);
         return result.isEmpty() ? null : result;

@@ -59,7 +59,8 @@ class SvgDiagramExporterTest {
         parser.parse(dsl);
         Workspace workspace = parser.getWorkspace();
 
-        // No ThemeCache.loadThemes needed — the local file theme is inlined during parse
+        // Theme is served from the JAR's bundled classpath resources — no HTTP calls made
+        ThemeCache.loadThemes(workspace);
         LayoutStrategyFactory.create().applyLayout(workspace);
 
         Collection<Diagram> diagrams = new SvgDiagramExporter().export(workspace);

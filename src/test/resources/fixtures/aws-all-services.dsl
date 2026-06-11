@@ -1142,6 +1142,6 @@ workspace "AWS All Services" "Covers every service tag from the AWS 2020.04.30 t
             autoLayout tb
         }
 
-        theme themes/amazon-web-services-2020.04.30/theme.json
+        theme https://static.structurizr.com/themes/amazon-web-services-2020.04.30/theme.json
     }
 }
