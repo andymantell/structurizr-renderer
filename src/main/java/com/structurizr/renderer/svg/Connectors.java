@@ -398,7 +398,8 @@ public class Connectors {
     /** Render only the path line (arrow) for one relationship. */
     static String renderPath(LabelInfo li) {
         return String.format(
-            "<path d=\"%s\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"%s marker-end=\"url(#arrow)\"/>\n",
+            "<path d=\"%s\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"%s " +
+            "stroke-linecap=\"round\" stroke-linejoin=\"round\" marker-end=\"url(#arrow)\"/>\n",
             li.pathD, li.color, li.thickness, li.dashAttr);
     }
 
@@ -413,7 +414,7 @@ public class Connectors {
         // the later-drawn one fully blanks the earlier one rather than leaving scrambled text.
         double blockTop = li.labelY - li.labelH / 2.0;
         sb.append(String.format(
-            "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"2\" fill=\"#ffffff\"/>\n",
+            "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"6\" fill=\"#ffffff\"/>\n",
             li.labelX - li.labelW / 2.0, blockTop, li.labelW, li.labelH));
 
         double textY = blockTop + li.descLineH;
@@ -425,7 +426,8 @@ public class Connectors {
         }
         for (String line : li.techLines) {
             sb.append(String.format(
-                "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" font-style=\"italic\" fill=\"%s\">%s</text>\n",
+                "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
+                "font-style=\"italic\" opacity=\"0.75\" fill=\"%s\">%s</text>\n",
                 li.labelX, textY, Shapes.DEFAULT_FONT, li.techFontSize, li.color, Shapes.htmlEscape(line)));
             textY += li.techLineH;
         }

@@ -506,7 +506,7 @@ public class Shapes {
         if (!tb.typeStr.isEmpty()) {
             sb.append(String.format(
                 "<text x=\"%d\" y=\"%d\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" " +
-                "fill=\"%s\">[%s]</text>\n",
+                "opacity=\"0.75\" fill=\"%s\">[%s]</text>\n",
                 cx, curY, DEFAULT_FONT, tb.typeFontSize, color, htmlEscape(tb.typeStr)));
             curY += tb.typeLineH;
             // Extra gap so description text (larger font) doesn't crowd the type subheading
@@ -585,7 +585,8 @@ public class Shapes {
     }
 
     private static String openGroup(Element element) {
-        return String.format("<g id=\"element-%s\">\n", htmlEscape(element.getId()));
+        return String.format("<g id=\"element-%s\" filter=\"url(#elem-shadow)\">\n",
+            htmlEscape(element.getId()));
     }
 
     private static String bg(ElementStyle style) {

@@ -760,7 +760,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
         String dashAttr = dashArray.isEmpty() ? "" : String.format(" stroke-dasharray=\"%s\"", dashArray);
         writer.writeLine(String.format(
-            "<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"0\" " +
+            "<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"10\" " +
             "fill=\"none\" stroke=\"%s\" stroke-width=\"2\"%s/>",
             bx, by, bw, bh, strokeColor, dashAttr));
 

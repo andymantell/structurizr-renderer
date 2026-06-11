@@ -39,7 +39,7 @@ def check(path):
     svg = open(path, encoding="utf-8").read()
 
     frames = []
-    for m in re.finditer(r'<rect x="(-?\d+)" y="(-?\d+)" width="(\d+)" height="(\d+)" rx="0" fill="none"', svg):
+    for m in re.finditer(r'<rect x="(-?\d+)" y="(-?\d+)" width="(\d+)" height="(\d+)" rx="\d+" fill="none"', svg):
         frames.append(tuple(float(g) for g in m.groups()))
 
     problems = 0
