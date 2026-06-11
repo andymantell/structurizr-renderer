@@ -106,10 +106,10 @@ class SvgDiagramExporterTest {
 
         Diagram d = new SvgDiagramExporter().export(workspace).iterator().next();
         String svg = d.getDefinition();
-        // The pair is spread into two parallel lines (PARALLEL_SPACING=40, so ±20 of
+        // The pair is spread into two parallel lines (PARALLEL_SPACING=60, so ±30 of
         // the y=250 centerline): forward A->B on one, the reversed response on the other.
-        assertTrue(svg.contains("M 550.0 270.0 L 1200.0 270.0"), "Forward step path missing");
-        assertTrue(svg.contains("M 1200.0 230.0 L 550.0 230.0"), "Response step should be reversed");
+        assertTrue(svg.contains("M 550.0 280.0 L 1200.0 280.0"), "Forward step path missing");
+        assertTrue(svg.contains("M 1200.0 220.0 L 550.0 220.0"), "Response step should be reversed");
     }
 
     @Test

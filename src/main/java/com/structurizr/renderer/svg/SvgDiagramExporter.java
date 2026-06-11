@@ -25,7 +25,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
     // Spacing between parallel lines when multiple relationships connect the
     // same element pair (e.g. a request and its response).
-    private static final double PARALLEL_SPACING = 40;
+    private static final double PARALLEL_SPACING = 60;
 
     // Per-view state (reset in writeHeader)
     private ModelView currentView;
