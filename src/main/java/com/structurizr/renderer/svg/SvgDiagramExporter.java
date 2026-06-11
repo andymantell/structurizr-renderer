@@ -24,6 +24,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     // Per-view state (reset in writeHeader)
     private ModelView currentView;
     private Deque<BoundaryState> boundaryStack;
+    private List<Connectors.LabelInfo> pendingRelationships;
     // Tracks max right/bottom edge in group (translated) space across all drawn content
     private int actualMaxX;
     private int actualMaxY;
@@ -36,6 +37,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     protected void writeHeader(ModelView view, IndentingWriter writer) {
         this.currentView = view;
         this.boundaryStack = new ArrayDeque<>();
+        this.pendingRelationships = new ArrayList<>();
         this.actualMaxX = 0;
         this.actualMaxY = 0;
 
@@ -53,8 +55,55 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
     @Override
     protected void writeFooter(ModelView view, IndentingWriter writer) {
+        repelLabels(pendingRelationships);
+        for (Connectors.LabelInfo li : pendingRelationships) {
+            writer.writeLine(Connectors.renderLayout(li));
+        }
+        pendingRelationships.clear();
+
         writer.writeLine("</g>");
         writer.writeLine("</svg>");
+    }
+
+    /**
+     * Iteratively push apart label bounding boxes that overlap.
+     * Each iteration nudges every overlapping pair in opposite directions until
+     * none overlap or the iteration limit is reached.
+     */
+    private static void repelLabels(List<Connectors.LabelInfo> labels) {
+        final int MAX_ITER = 30;
+        for (int iter = 0; iter < MAX_ITER; iter++) {
+            boolean moved = false;
+            for (int i = 0; i < labels.size(); i++) {
+                for (int j = i + 1; j < labels.size(); j++) {
+                    Connectors.LabelInfo a = labels.get(i);
+                    Connectors.LabelInfo b = labels.get(j);
+                    if (!a.hasLabel || !b.hasLabel) continue;
+
+                    double ax1 = a.labelX - a.labelW / 2.0, ax2 = a.labelX + a.labelW / 2.0;
+                    double ay1 = a.labelY - a.labelH / 2.0, ay2 = a.labelY + a.labelH / 2.0;
+                    double bx1 = b.labelX - b.labelW / 2.0, bx2 = b.labelX + b.labelW / 2.0;
+                    double by1 = b.labelY - b.labelH / 2.0, by2 = b.labelY + b.labelH / 2.0;
+
+                    double overlapX = Math.min(ax2, bx2) - Math.max(ax1, bx1);
+                    double overlapY = Math.min(ay2, by2) - Math.max(ay1, by1);
+
+                    if (overlapX > 0 && overlapY > 0) {
+                        moved = true;
+                        double dx = b.labelX - a.labelX;
+                        double dy = b.labelY - a.labelY;
+                        double len = Math.sqrt(dx * dx + dy * dy);
+                        if (len < 1) { dx = 0; dy = 1; len = 1; }
+                        // Push each label half the overlap distance plus a small gap
+                        double pushX = (overlapX / 2.0 + 4) * (dx / len);
+                        double pushY = (overlapY / 2.0 + 4) * (dy / len);
+                        a.labelX -= pushX;  a.labelY -= pushY;
+                        b.labelX += pushX;  b.labelY += pushY;
+                    }
+                }
+            }
+            if (!moved) break;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -95,7 +144,9 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
         RelationshipStyle style = findRelationshipStyle(view, rel);
 
-        writer.writeLine(Connectors.render(rv, srcEv, dstEv, style, view));
+        // Defer rendering: collect layout data so we can run a repulsion pass over all labels
+        // before writing anything, ensuring crossing-edge labels don't overlap.
+        pendingRelationships.add(Connectors.computeLayout(rv, srcEv, dstEv, style, view));
     }
 
     // -------------------------------------------------------------------------

@@ -16,28 +16,78 @@ public class Connectors {
         "</marker>" +
         "</defs>\n";
 
-    static String render(RelationshipView rv, ElementView srcEv, ElementView dstEv,
-                         RelationshipStyle style, ModelView view) {
+    // -------------------------------------------------------------------------
+    // Public API used by SvgDiagramExporter
+    // -------------------------------------------------------------------------
+
+    /**
+     * Holds the fully-computed layout for one relationship: the SVG path data plus
+     * mutable label position (adjusted by the caller's overlap-repulsion pass).
+     */
+    static class LabelInfo {
+        // Path rendering
+        final String pathD;
+        final String dashAttr;
+        final String color;
+        final int    thickness;
+
+        // Label content (null lists / false hasLabel → no label)
+        final boolean      hasLabel;
+              double       labelX;   // mutable — adjusted during repulsion
+              double       labelY;   // mutable
+        final List<String> descLines;
+        final List<String> techLines;
+        final int fontSize;
+        final int techFontSize;
+        final int descLineH;
+        final int techLineH;
+
+        // Bounding-box dimensions for overlap detection (0 when hasLabel=false)
+        final int labelW;  // max line width + padding
+        final int labelH;  // total block height including padding
+
+        LabelInfo(String pathD, String dashAttr, String color, int thickness,
+                  boolean hasLabel, double labelX, double labelY,
+                  List<String> descLines, List<String> techLines,
+                  int fontSize, int techFontSize, int descLineH, int techLineH,
+                  int labelW, int labelH) {
+            this.pathD        = pathD;
+            this.dashAttr     = dashAttr;
+            this.color        = color;
+            this.thickness    = thickness;
+            this.hasLabel     = hasLabel;
+            this.labelX       = labelX;
+            this.labelY       = labelY;
+            this.descLines    = descLines;
+            this.techLines    = techLines;
+            this.fontSize     = fontSize;
+            this.techFontSize = techFontSize;
+            this.descLineH    = descLineH;
+            this.techLineH    = techLineH;
+            this.labelW       = labelW;
+            this.labelH       = labelH;
+        }
+    }
+
+    /** Compute path geometry and label position for one relationship. */
+    static LabelInfo computeLayout(RelationshipView rv, ElementView srcEv, ElementView dstEv,
+                                    RelationshipStyle style, ModelView view) {
         Relationship rel = rv.getRelationship();
 
-        // Look up actual element dimensions from styles
         ElementStyle srcStyle = view.getViewSet().getConfiguration().getStyles().findElementStyle(srcEv.getElement());
         ElementStyle dstStyle = view.getViewSet().getConfiguration().getStyles().findElementStyle(dstEv.getElement());
 
         int[] srcDims = Shapes.defaultDimensions(srcEv.getElement(), srcStyle);
         int[] dstDims = Shapes.defaultDimensions(dstEv.getElement(), dstStyle);
-        int srcW = srcDims[0], srcH = srcDims[1];
-        int dstW = dstDims[0], dstH = dstDims[1];
 
-        double x1 = srcEv.getX() + srcW / 2.0;
-        double y1 = srcEv.getY() + srcH / 2.0;
-        double x2 = dstEv.getX() + dstW / 2.0;
-        double y2 = dstEv.getY() + dstH / 2.0;
+        double x1 = srcEv.getX() + srcDims[0] / 2.0;
+        double y1 = srcEv.getY() + srcDims[1] / 2.0;
+        double x2 = dstEv.getX() + dstDims[0] / 2.0;
+        double y2 = dstEv.getY() + dstDims[1] / 2.0;
 
-        double[] p1 = clipToRect(x1, y1, x2, y2, srcEv.getX(), srcEv.getY(), srcW, srcH);
-        double[] p2 = clipToRect(x2, y2, x1, y1, dstEv.getX(), dstEv.getY(), dstW, dstH);
+        double[] p1 = clipToRect(x1, y1, x2, y2, srcEv.getX(), srcEv.getY(), srcDims[0], srcDims[1]);
+        double[] p2 = clipToRect(x2, y2, x1, y1, dstEv.getX(), dstEv.getY(), dstDims[0], dstDims[1]);
 
-        // Structurizr's library default is #707070; replace that with our reference-matching #444444
         String rawColor  = style.getColor();
         String color     = (rawColor == null || "#707070".equalsIgnoreCase(rawColor)) ? "#444444" : rawColor;
         int    thickness = style.getThickness() != null ? style.getThickness() : 2;
@@ -53,8 +103,6 @@ public class Connectors {
         double labelX, labelY;
 
         if (!routingVertices.isEmpty()) {
-            // Graphviz vertices are intermediate bend points only (no start/end).
-            // Use clipToRect for the endpoints and thread the waypoints between them.
             StringBuilder path = new StringBuilder();
             path.append(String.format("M %.1f %.1f", p1[0], p1[1]));
             for (Vertex v : routingVertices) {
@@ -82,61 +130,83 @@ public class Connectors {
             labelY = p1[1] + t * (p2[1] - p1[1]) - 6;
         }
 
-        StringBuilder sb = new StringBuilder();
-
-        sb.append(String.format(
-            "<g>\n<path d=\"%s\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"%s marker-end=\"url(#arrow)\"/>\n",
-            pathD, color, thickness, dashAttr
-        ));
-
         String description = rel.getDescription();
         String technology  = rel.getTechnology();
         boolean hasDesc    = description != null && !description.isEmpty();
         boolean hasTech    = technology  != null && !technology.isEmpty();
+        boolean hasLabel   = hasDesc || hasTech;
 
-        if (hasDesc || hasTech) {
-            int techFontSize = (int)(fontSize * 0.75);
-            int descLineH    = (int)(fontSize  * 1.2);
-            int techLineH    = (int)(techFontSize * 1.2);
-            // Wrap at ~8x font-size width (roughly matches reference proportions)
-            int maxLabelWidth = fontSize * 8;
+        int techFontSize = (int)(fontSize * 0.75);
+        int descLineH    = (int)(fontSize  * 1.2);
+        int techLineH    = (int)(techFontSize * 1.2);
+        int maxLabelWidth = fontSize * 8;
 
-            List<String> descLines = hasDesc
-                ? Shapes.wrapText(description, maxLabelWidth, fontSize) : new ArrayList<>();
-            List<String> techLines = hasTech
-                ? Shapes.wrapText("[" + technology + "]", maxLabelWidth, techFontSize) : new ArrayList<>();
+        List<String> descLines = hasDesc
+            ? Shapes.wrapText(description, maxLabelWidth, fontSize) : new ArrayList<>();
+        List<String> techLines = hasTech
+            ? Shapes.wrapText("[" + technology + "]", maxLabelWidth, techFontSize) : new ArrayList<>();
 
-            int totalH = descLines.size() * descLineH + techLines.size() * techLineH + 8;
+        int labelW = 0, labelH = 0;
+        if (hasLabel) {
+            int maxLineW = 0;
+            for (String line : descLines)
+                maxLineW = Math.max(maxLineW, (int)(line.length() * fontSize * 0.55));
+            for (String line : techLines)
+                maxLineW = Math.max(maxLineW, (int)(line.length() * techFontSize * 0.55));
+            labelW = maxLineW + 10;
+            labelH = descLines.size() * descLineH + techLines.size() * techLineH + 8;
+        }
 
-            // Draw a tight per-line background rect then the text, so the backing only masks the
-            // area directly behind each text line rather than one large rectangle that blanks out
-            // neighbouring connectors and boundary lines.
-            double textY = labelY - totalH / 2.0 + descLineH;
-            for (String line : descLines) {
-                int lineW = (int)(line.length() * fontSize * 0.55) + 10;
-                sb.append(String.format(
-                    "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"2\" fill=\"#ffffff\"/>\n",
-                    labelX - lineW / 2.0, textY - descLineH + 3, lineW, descLineH - 2));
+        return new LabelInfo(pathD, dashAttr, color, thickness,
+                             hasLabel, labelX, labelY,
+                             descLines, techLines,
+                             fontSize, techFontSize, descLineH, techLineH,
+                             labelW, labelH);
+    }
+
+    /** Render one relationship to SVG using (potentially adjusted) label position. */
+    static String renderLayout(LabelInfo li) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format(
+            "<g>\n<path d=\"%s\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"%s marker-end=\"url(#arrow)\"/>\n",
+            li.pathD, li.color, li.thickness, li.dashAttr));
+
+        if (li.hasLabel) {
+            // One background rect covers the whole label block so that when two labels overlap
+            // the later-drawn one fully blanks the earlier one rather than leaving scrambled text.
+            double blockTop = li.labelY - li.labelH / 2.0;
+            sb.append(String.format(
+                "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"2\" fill=\"#ffffff\"/>\n",
+                li.labelX - li.labelW / 2.0, blockTop, li.labelW, li.labelH));
+
+            double textY = blockTop + li.descLineH;
+            for (String line : li.descLines) {
                 sb.append(String.format(
                     "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" fill=\"%s\">%s</text>\n",
-                    labelX, textY, Shapes.DEFAULT_FONT, fontSize, color, Shapes.htmlEscape(line)));
-                textY += descLineH;
+                    li.labelX, textY, Shapes.DEFAULT_FONT, li.fontSize, li.color, Shapes.htmlEscape(line)));
+                textY += li.descLineH;
             }
-            for (String line : techLines) {
-                int lineW = (int)(line.length() * techFontSize * 0.55) + 10;
-                sb.append(String.format(
-                    "<rect x=\"%.1f\" y=\"%.1f\" width=\"%d\" height=\"%d\" rx=\"2\" fill=\"#ffffff\"/>\n",
-                    labelX - lineW / 2.0, textY - techLineH + 3, lineW, techLineH - 2));
+            for (String line : li.techLines) {
                 sb.append(String.format(
                     "<text x=\"%.1f\" y=\"%.1f\" text-anchor=\"middle\" font-family=\"%s\" font-size=\"%d\" font-style=\"italic\" fill=\"%s\">%s</text>\n",
-                    labelX, textY, Shapes.DEFAULT_FONT, techFontSize, color, Shapes.htmlEscape(line)));
-                textY += techLineH;
+                    li.labelX, textY, Shapes.DEFAULT_FONT, li.techFontSize, li.color, Shapes.htmlEscape(line)));
+                textY += li.techLineH;
             }
         }
 
         sb.append("</g>\n");
         return sb.toString();
     }
+
+    /** Convenience wrapper: compute then immediately render (no overlap correction). */
+    static String render(RelationshipView rv, ElementView srcEv, ElementView dstEv,
+                         RelationshipStyle style, ModelView view) {
+        return renderLayout(computeLayout(rv, srcEv, dstEv, style, view));
+    }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
 
     private static double[] polylinePointAtFraction(double[] p1, Collection<Vertex> vertices,
                                                       double[] p2, double fraction) {
