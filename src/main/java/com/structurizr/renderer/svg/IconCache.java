@@ -49,8 +49,16 @@ public class IconCache {
         return result.isEmpty() ? null : result;
     }
 
+    private static String mimeFor(String url) {
+        String lower = url.toLowerCase();
+        if (lower.endsWith(".svg"))                            return "image/svg+xml";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".gif"))                            return "image/gif";
+        return "image/png";
+    }
+
     private static String fetchWithDiskCache(String url) {
-        String mime = url.toLowerCase().endsWith(".svg") ? "image/svg+xml" : "image/png";
+        String mime = mimeFor(url);
 
         // 1. Try disk cache
         if (DISK_CACHE != null) {
