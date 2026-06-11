@@ -475,7 +475,11 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             // than to any foreign line at equilibrium.
             for (Connectors.LabelInfo li : labels) {
                 if (!li.hasLabel) continue;
-                double[] np = nearestPointOnPath(li.pathPoints, li.labelX, li.labelY);
+                // Tether to the path minus its ends, so the equilibrium between the
+                // tether and the tip repulsion can never leave a label sitting on
+                // its own arrowhead (or the clip point at the source).
+                double[] np = nearestPointOnPath(
+                    trimPath(li.pathPoints, 30, 60), li.labelX, li.labelY);
                 li.labelX += (np[0] - li.labelX) * TETHER;
                 li.labelY += (np[1] - li.labelY) * TETHER;
             }
@@ -501,6 +505,33 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     }
 
     /** Returns the nearest point on the polyline defined by pts to (px,py). */
+    /** The polyline with the given lengths cut off each end (unchanged if too short). */
+    private static List<double[]> trimPath(List<double[]> pts, double fromStart, double fromEnd) {
+        double total = 0;
+        for (int i = 0; i < pts.size() - 1; i++) {
+            total += Math.hypot(pts.get(i + 1)[0] - pts.get(i)[0], pts.get(i + 1)[1] - pts.get(i)[1]);
+        }
+        if (total <= fromStart + fromEnd + 10) return pts;
+
+        double startS = fromStart, endS = total - fromEnd;
+        List<double[]> out = new ArrayList<>();
+        double s = 0;
+        for (int i = 0; i < pts.size() - 1; i++) {
+            double[] a = pts.get(i), b = pts.get(i + 1);
+            double segLen = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            if (segLen > 0 && s + segLen > startS && s < endS) {
+                double t0 = Math.max(0, (startS - s) / segLen);
+                double t1 = Math.min(1, (endS - s) / segLen);
+                if (out.isEmpty()) {
+                    out.add(new double[]{a[0] + (b[0] - a[0]) * t0, a[1] + (b[1] - a[1]) * t0});
+                }
+                out.add(new double[]{a[0] + (b[0] - a[0]) * t1, a[1] + (b[1] - a[1]) * t1});
+            }
+            s += segLen;
+        }
+        return out.size() < 2 ? pts : out;
+    }
+
     private static double[] nearestPointOnPath(List<double[]> pts, double px, double py) {
         double bestDist = Double.MAX_VALUE;
         double[] best = pts.get(0);
