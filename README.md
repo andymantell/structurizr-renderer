@@ -25,6 +25,7 @@ java -jar structurizr-renderer.jar [OPTIONS] <path/to/workspace.dsl>
 | `-f`, `--format` `<fmt>` | `svg` | Output format: `svg`, `png`, or `both` |
 | `-v`, `--view` `<key>` | _(all views)_ | Render only the view with this key |
 | `--no-autolayout` | — | Skip automatic layout even when the DSL requests it |
+| `--proxy` `<host:port>` | _(direct connection)_ | HTTP(S) proxy used when downloading non-bundled themes or icons (bundled themes never touch the network) |
 | `-h`, `--help` | — | Show help and exit |
 | `-V`, `--version` | — | Print version and exit |
 
