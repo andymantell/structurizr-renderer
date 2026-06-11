@@ -37,6 +37,9 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     // in repelLabels so relationship labels don't paint over element label text.
     // Each entry: [centerX, centerY, width, height]
     private List<double[]> elementObstacles;
+    // Boundary label text areas [cx, cy, w, h]; relationship labels avoid them,
+    // but lines may cross them (detouring around a text caption looks odd)
+    private List<double[]> boundaryLabelObstacles;
     // Boundary frame rects [x, y, w, h]; labels must not straddle their edges
     private List<double[]> boundaryFrames;
     // Computed boundary rectangles keyed by the boundary's element id (deployment
@@ -64,6 +67,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         this.pendingRelData = new ArrayList<>();
         this.pendingRelationships = new ArrayList<>();
         this.elementObstacles = new ArrayList<>();
+        this.boundaryLabelObstacles = new ArrayList<>();
         this.boundaryFrames = new ArrayList<>();
         this.boundaryRects = new java.util.HashMap<>();
         this.actualMinX = 0;
@@ -88,7 +92,9 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         List<PendingRel> unique = dedupRelationships(pendingRelData);
         spreadAndLayout(unique);
 
-        repelLabels(pendingRelationships, elementObstacles, boundaryFrames);
+        List<double[]> labelObstacles = new ArrayList<>(elementObstacles);
+        labelObstacles.addAll(boundaryLabelObstacles);
+        repelLabels(pendingRelationships, labelObstacles, boundaryFrames);
 
         // Fold relationship geometry (waypoints and final label boxes) into the tracked
         // bounds so paths routed outside the element extent aren't clipped off-canvas.
@@ -792,7 +798,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         // are repelled away from it and don't paint over the boundary label text.
         int labelObstacleW = (int) Math.ceil(TextMetrics.width(state.label, fontSize, true)) + 20;
         int labelObstacleH = fontSize + 12;
-        elementObstacles.add(new double[]{
+        boundaryLabelObstacles.add(new double[]{
             labelTextX + labelObstacleW / 2.0,
             by + bh - 15 - fontSize / 2.0,
             labelObstacleW,
