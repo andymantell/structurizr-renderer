@@ -468,9 +468,9 @@ public class Shapes {
         int nameFontSize = (int)(fontSize * 1.4);
         int typeFontSize = (int)(fontSize * 0.7);
         int descFontSize = fontSize;
-        int nameLineH    = (int)(nameFontSize * 1.2) + 2;
-        int typeLineH    = typeFontSize + 4;
-        int descLineH    = descFontSize + 4;
+        int nameLineH    = (int)(nameFontSize * 1.4);
+        int typeLineH    = (int)(typeFontSize * 1.4);
+        int descLineH    = (int)(descFontSize * 1.4);
 
         List<String> nameLines = wrapText(name, w - 20, nameFontSize);
         if (nameLines.isEmpty()) nameLines.add(name);
@@ -500,6 +500,8 @@ public class Shapes {
                 "fill=\"%s\">[%s]</text>\n",
                 cx, curY, DEFAULT_FONT, typeFontSize, color, htmlEscape(typeStr)));
             curY += typeLineH;
+            // Extra gap so description text (larger font) doesn't crowd the type subheading
+            if (!descLines.isEmpty()) curY += descFontSize / 3;
         }
 
         for (String line : descLines) {

@@ -150,7 +150,10 @@ public class Connectors {
             labelY = p1[1] + t * (p2[1] - p1[1]) - 6;
         }
 
-        String description = rel.getDescription();
+        // Prefer the view-level description (set on dynamic-view steps) over the model-level
+        // value, so step labels like "Submits credentials to" are shown correctly.
+        String rvDesc = rv.getDescription();
+        String description = (rvDesc != null && !rvDesc.isEmpty()) ? rvDesc : rel.getDescription();
         String technology  = rel.getTechnology();
         boolean hasDesc    = description != null && !description.isEmpty();
         boolean hasTech    = technology  != null && !technology.isEmpty();

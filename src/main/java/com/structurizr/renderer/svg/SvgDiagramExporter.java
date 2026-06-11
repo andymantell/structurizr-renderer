@@ -25,6 +25,10 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     private ModelView currentView;
     private Deque<BoundaryState> boundaryStack;
     private List<Connectors.LabelInfo> pendingRelationships;
+    // Element bounding boxes collected during writeElement, used as static obstacles
+    // in repelLabels so relationship labels don't paint over element label text.
+    // Each entry: [centerX, centerY, width, height]
+    private List<double[]> elementObstacles;
     // Tracks max right/bottom edge in group (translated) space across all drawn content
     private int actualMaxX;
     private int actualMaxY;
@@ -38,6 +42,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         this.currentView = view;
         this.boundaryStack = new ArrayDeque<>();
         this.pendingRelationships = new ArrayList<>();
+        this.elementObstacles = new ArrayList<>();
         this.actualMaxX = 0;
         this.actualMaxY = 0;
 
@@ -55,7 +60,20 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
     @Override
     protected void writeFooter(ModelView view, IndentingWriter writer) {
-        repelLabels(pendingRelationships);
+        // Deduplicate: dynamic views supply both a static-model RelationshipView and a
+        // dynamic-step RelationshipView for the same element pair.  When two entries share
+        // an identical path, keep the one that has a label (the dynamic step) and drop the
+        // plain static duplicate.
+        java.util.Map<String, Connectors.LabelInfo> deduped = new java.util.LinkedHashMap<>();
+        for (Connectors.LabelInfo li : pendingRelationships) {
+            Connectors.LabelInfo existing = deduped.get(li.pathD);
+            if (existing == null || (!existing.hasLabel && li.hasLabel)) {
+                deduped.put(li.pathD, li);
+            }
+        }
+        pendingRelationships = new ArrayList<>(deduped.values());
+
+        repelLabels(pendingRelationships, elementObstacles);
         // Two-pass render: all arrow lines first, then all labels on top.
         // This guarantees no line from relationship B can paint over the label of relationship A.
         writer.writeLine("<g id=\"edges\">");
@@ -85,7 +103,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
      *    push labels away from the crossing obstacles.  Runs until no collision
      *    remains or the iteration cap is hit.
      */
-    private static void repelLabels(List<Connectors.LabelInfo> labels) {
+    private static void repelLabels(List<Connectors.LabelInfo> labels, List<double[]> elementObstacles) {
         // --- Phase 1: find crossing obstacles ---
         List<double[]> crossings = new ArrayList<>();
         for (int i = 0; i < labels.size(); i++) {
@@ -107,10 +125,11 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         // Obstacle zone: label-sized forbidden region around each crossing point.
         final int OBS_W = 110, OBS_H = 70;
         final int MAX_ITER = 60;
-        // Tether strength: each iteration the label is pulled 8% back toward its
-        // original position.  This prevents runaway drift into adjacent element boxes
-        // while still allowing enough movement to clear crossings and other labels.
-        final double TETHER = 0.08;
+        // Tether strength: each iteration the label is pulled 35% toward the nearest
+        // point on its OWN path.  Using the nearest path point (not the fixed origin)
+        // ensures the label stays anchored to its own line even after being pushed
+        // sideways, so it is always closer to its own line than to any foreign line.
+        final double TETHER = 0.35;
 
         for (int iter = 0; iter < MAX_ITER; iter++) {
             boolean moved = false;
@@ -140,6 +159,25 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
                 }
             }
 
+            // Label vs element bounding box.
+            // Relationship labels must not paint over the text inside element boxes.
+            for (Connectors.LabelInfo li : labels) {
+                if (!li.hasLabel) continue;
+                for (double[] obs : elementObstacles) {
+                    double ox = overlapAxis(li.labelX, li.labelW, obs[0], (int) obs[2]);
+                    double oy = overlapAxis(li.labelY, li.labelH, obs[1], (int) obs[3]);
+                    if (ox > 0 && oy > 0) {
+                        moved = true;
+                        double dx = li.labelX - obs[0];
+                        double dy = li.labelY - obs[1];
+                        double len = Math.sqrt(dx * dx + dy * dy);
+                        if (len < 1) { dx = 0; dy = -1; len = 1; }
+                        li.labelX += (ox / 2.0 + 4) * (dx / len);
+                        li.labelY += (oy / 2.0 + 4) * (dy / len);
+                    }
+                }
+            }
+
             // Label vs foreign line segments.
             // For each label, check every segment of every OTHER relationship's path.
             // If a segment comes within the label's bounding-circle radius (plus a small
@@ -148,8 +186,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             for (int i = 0; i < labels.size(); i++) {
                 Connectors.LabelInfo li = labels.get(i);
                 if (!li.hasLabel) continue;
-                // Exclusion radius: half-diagonal of the label rect + 12px clearance buffer
-                double clearance = Math.hypot(li.labelW / 2.0, li.labelH / 2.0) + 12;
+                // Exclusion radius: half-diagonal of the label rect + 40px clearance buffer
+                double clearance = Math.hypot(li.labelW / 2.0, li.labelH / 2.0) + 40;
                 for (int j = 0; j < labels.size(); j++) {
                     if (i == j) continue;
                     List<double[]> pts = labels.get(j).pathPoints;
@@ -182,13 +220,16 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
                 }
             }
 
-            // Tethering: gently pull each label back toward its original position.
-            // Applied after repulsion so it can't prevent the label from clearing an
-            // obstacle, but dampens excessive drift over many iterations.
+            // Tethering: pull each label toward the nearest point on its OWN path.
+            // Using the dynamic nearest-path-point (not a fixed origin) ensures the label
+            // stays anchored to the correct line even after being pushed sideways by
+            // foreign-line repulsion, guaranteeing it remains closer to its own line
+            // than to any foreign line at equilibrium.
             for (Connectors.LabelInfo li : labels) {
                 if (!li.hasLabel) continue;
-                li.labelX += (li.origLabelX - li.labelX) * TETHER;
-                li.labelY += (li.origLabelY - li.labelY) * TETHER;
+                double[] np = nearestPointOnPath(li.pathPoints, li.labelX, li.labelY);
+                li.labelX += (np[0] - li.labelX) * TETHER;
+                li.labelY += (np[1] - li.labelY) * TETHER;
             }
 
             if (!moved) break;
@@ -209,6 +250,19 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         a.labelX -= pushX;  a.labelY -= pushY;
         b.labelX += pushX;  b.labelY += pushY;
         return true;
+    }
+
+    /** Returns the nearest point on the polyline defined by pts to (px,py). */
+    private static double[] nearestPointOnPath(List<double[]> pts, double px, double py) {
+        double bestDist = Double.MAX_VALUE;
+        double[] best = pts.get(0);
+        for (int k = 0; k < pts.size() - 1; k++) {
+            double[] cp = closestPointOnSegment(px, py,
+                pts.get(k)[0], pts.get(k)[1], pts.get(k + 1)[0], pts.get(k + 1)[1]);
+            double d = Math.hypot(px - cp[0], py - cp[1]);
+            if (d < bestDist) { bestDist = d; best = cp; }
+        }
+        return best;
     }
 
     /** Returns the closest point on segment (ax,ay)→(bx,by) to point (px,py). */
@@ -265,6 +319,9 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
         actualMaxX = Math.max(actualMaxX, ev.getX() + w);
         actualMaxY = Math.max(actualMaxY, ev.getY() + h);
+
+        // Record element bbox so repelLabels can keep relationship labels clear of element text
+        elementObstacles.add(new double[]{ev.getX() + w / 2.0, ev.getY() + h / 2.0, w, h});
 
         writer.writeLine(Shapes.render(view, element, style, ev.getX(), ev.getY(), w, h));
     }
@@ -428,6 +485,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             "fill=\"none\" stroke=\"%s\" stroke-width=\"2\"%s/>",
             bx, by, bw, bh, strokeColor, dashAttr));
 
+        int labelTextX;
         if (state.iconDataUri != null) {
             // Small icon to the left of the label at the bottom of the boundary box
             int iconSize = 36;
@@ -436,18 +494,31 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             writer.writeLine(String.format(
                 "<image x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" href=\"%s\" xlink:href=\"%s\"/>",
                 iconX, iconY, iconSize, iconSize, state.iconDataUri, state.iconDataUri));
+            labelTextX = iconX + iconSize + 6;
             writer.writeLine(String.format(
                 "<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"%d\" " +
                 "font-weight=\"bold\" fill=\"%s\">%s</text>",
-                iconX + iconSize + 6, by + bh - 15, Shapes.DEFAULT_FONT, fontSize,
+                labelTextX, by + bh - 15, Shapes.DEFAULT_FONT, fontSize,
                 strokeColor, Shapes.htmlEscape(state.label)));
         } else {
+            labelTextX = bx + 15;
             writer.writeLine(String.format(
                 "<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"%d\" " +
                 "font-weight=\"bold\" fill=\"%s\">%s</text>",
-                bx + 15, by + bh - 15, Shapes.DEFAULT_FONT, fontSize,
+                labelTextX, by + bh - 15, Shapes.DEFAULT_FONT, fontSize,
                 strokeColor, Shapes.htmlEscape(state.label)));
         }
+
+        // Record boundary label text area as a static obstacle so relationship labels
+        // are repelled away from it and don't paint over the boundary label text.
+        int labelObstacleW = (int)(state.label.length() * fontSize * 0.6) + 20;
+        int labelObstacleH = fontSize + 12;
+        elementObstacles.add(new double[]{
+            labelTextX + labelObstacleW / 2.0,
+            by + bh - 15 - fontSize / 2.0,
+            labelObstacleW,
+            labelObstacleH
+        });
     }
 
     // -------------------------------------------------------------------------
