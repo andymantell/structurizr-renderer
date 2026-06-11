@@ -190,9 +190,9 @@ public class Connectors {
         if (hasLabel) {
             int maxLineW = 0;
             for (String line : descLines)
-                maxLineW = Math.max(maxLineW, (int)(line.length() * fontSize * 0.55));
+                maxLineW = Math.max(maxLineW, (int) Math.ceil(TextMetrics.width(line, fontSize, false)));
             for (String line : techLines)
-                maxLineW = Math.max(maxLineW, (int)(line.length() * techFontSize * 0.55));
+                maxLineW = Math.max(maxLineW, (int) Math.ceil(TextMetrics.width(line, techFontSize, false)));
             labelW = maxLineW + 10;
             labelH = descLines.size() * descLineH + techLines.size() * techLineH + 8;
         }

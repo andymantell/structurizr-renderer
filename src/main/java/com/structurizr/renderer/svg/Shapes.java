@@ -472,7 +472,7 @@ public class Shapes {
         int typeLineH    = (int)(typeFontSize * 1.4);
         int descLineH    = (int)(descFontSize * 1.4);
 
-        List<String> nameLines = wrapText(name, w - 20, nameFontSize);
+        List<String> nameLines = wrapText(name, w - 20, nameFontSize, true);
         if (nameLines.isEmpty()) nameLines.add(name);
         List<String> descLines = (desc != null && !desc.isEmpty())
             ? wrapText(desc, w - 20, descFontSize) : new ArrayList<>();
@@ -587,19 +587,34 @@ public class Shapes {
     }
 
     static List<String> wrapText(String text, int maxWidth, int fontSize) {
+        return wrapText(text, maxWidth, fontSize, false);
+    }
+
+    /** Greedy word wrap using measured text widths; words wider than a line are hard-broken. */
+    static List<String> wrapText(String text, int maxWidth, int fontSize, boolean bold) {
         List<String> lines = new ArrayList<>();
         if (text == null || text.isEmpty()) return lines;
-        double charWidth = fontSize * 0.55;
-        int charsPerLine = Math.max(1, (int)(maxWidth / charWidth));
-        String[] words = text.split("\\s+");
         StringBuilder line = new StringBuilder();
-        for (String word : words) {
-            if (line.length() > 0 && line.length() + 1 + word.length() > charsPerLine) {
+        for (String word : text.split("\\s+")) {
+            // Hard-break any word that can't fit on a line by itself
+            while (word.length() > 1 && TextMetrics.width(word, fontSize, bold) > maxWidth) {
+                int cut = word.length() - 1;
+                while (cut > 1 && TextMetrics.width(word.substring(0, cut), fontSize, bold) > maxWidth) {
+                    cut--;
+                }
+                if (line.length() > 0) {
+                    lines.add(line.toString());
+                    line.setLength(0);
+                }
+                lines.add(word.substring(0, cut));
+                word = word.substring(cut);
+            }
+            String candidate = line.isEmpty() ? word : line + " " + word;
+            if (!line.isEmpty() && TextMetrics.width(candidate, fontSize, bold) > maxWidth) {
                 lines.add(line.toString());
                 line = new StringBuilder(word);
             } else {
-                if (line.length() > 0) line.append(' ');
-                line.append(word);
+                line = new StringBuilder(candidate);
             }
         }
         if (line.length() > 0) lines.add(line.toString());

@@ -584,7 +584,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
         // Record boundary label text area as a static obstacle so relationship labels
         // are repelled away from it and don't paint over the boundary label text.
-        int labelObstacleW = (int)(state.label.length() * fontSize * 0.6) + 20;
+        int labelObstacleW = (int) Math.ceil(TextMetrics.width(state.label, fontSize, true)) + 20;
         int labelObstacleH = fontSize + 12;
         elementObstacles.add(new double[]{
             labelTextX + labelObstacleW / 2.0,
