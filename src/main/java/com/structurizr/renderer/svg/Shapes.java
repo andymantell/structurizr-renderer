@@ -59,7 +59,7 @@ public class Shapes {
     static String render(ModelView view, Element element, ElementStyle style, int x, int y, int w, int h) {
         Shape shape = style.getShape() != null ? style.getShape() : Shape.Box;
         return switch (shape) {
-            case Box          -> renderBox(view, element, style, x, y, w, h, 1);
+            case Box          -> renderBox(view, element, style, x, y, w, h, 3);
             case RoundedBox   -> renderBox(view, element, style, x, y, w, h, 10);
             case Circle       -> renderCircle(view, element, style, x, y, w, h);
             case Ellipse      -> renderEllipse(view, element, style, x, y, w, h);
@@ -75,7 +75,7 @@ public class Shapes {
             case Window       -> renderWindow(view, element, style, x, y, w, h);
             case MobileDeviceLandscape -> renderMobileDevice(view, element, style, x, y, w, h, true);
             case MobileDevicePortrait  -> renderMobileDevice(view, element, style, x, y, w, h, false);
-            default           -> renderBox(view, element, style, x, y, w, h, 0);
+            default           -> renderBox(view, element, style, x, y, w, h, 3);
         };
     }
 
@@ -85,7 +85,7 @@ public class Shapes {
     private static final int ICON_AREA = ICON_SIZE + ICON_PAD * 2;
 
     // -------------------------------------------------------------------------
-    // Box / RoundedBox (rx=0 for Box, rx=15 for RoundedBox)
+    // Box / RoundedBox (rx=3 for Box, rx=10 for RoundedBox)
     // -------------------------------------------------------------------------
     private static String renderBox(ModelView view, Element element, ElementStyle style,
                                      int x, int y, int w, int h, int rx) {
@@ -368,7 +368,7 @@ public class Shapes {
 
         StringBuilder sb = new StringBuilder();
         sb.append(openGroup(element));
-        sb.append(String.format("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
+        sb.append(String.format("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"3\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             x, y, w, h, bg, stroke, sw));
         sb.append(String.format("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             notchX, y + notchH, notchW, notchH, bg, stroke, sw));
@@ -396,7 +396,7 @@ public class Shapes {
         sb.append(String.format("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"4\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             x, y, tabW, tabH, bg, stroke, sw));
         // Body
-        sb.append(String.format("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
+        sb.append(String.format("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"3\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             x, y + tabH, w, h - tabH, bg, stroke, sw));
         sb.append(renderBoxText(view, element, style, x, y + tabH, w, h - tabH));
         sb.append("</g>\n");
