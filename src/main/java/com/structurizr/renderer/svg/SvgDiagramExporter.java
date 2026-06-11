@@ -37,6 +37,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     // in repelLabels so relationship labels don't paint over element label text.
     // Each entry: [centerX, centerY, width, height]
     private List<double[]> elementObstacles;
+    // Boundary frame rects [x, y, w, h]; labels must not straddle their edges
+    private List<double[]> boundaryFrames;
     // Computed boundary rectangles keyed by the boundary's element id (deployment
     // nodes, software system / container boundaries).  Relationships touching these
     // elements connect to the boundary box — the element view's own coordinates are
@@ -62,6 +64,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         this.pendingRelData = new ArrayList<>();
         this.pendingRelationships = new ArrayList<>();
         this.elementObstacles = new ArrayList<>();
+        this.boundaryFrames = new ArrayList<>();
         this.boundaryRects = new java.util.HashMap<>();
         this.actualMinX = 0;
         this.actualMinY = 0;
@@ -85,7 +88,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         List<PendingRel> unique = dedupRelationships(pendingRelData);
         spreadAndLayout(unique);
 
-        repelLabels(pendingRelationships, elementObstacles);
+        repelLabels(pendingRelationships, elementObstacles, boundaryFrames);
 
         // Fold relationship geometry (waypoints and final label boxes) into the tracked
         // bounds so paths routed outside the element extent aren't clipped off-canvas.
@@ -235,10 +238,43 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         for (PendingRel pr : rels) {
             double[] off = offsets.get(pr);
             pendingRelationships.add(off == null
-                ? Connectors.computeLayout(pr.rv, pr.srcRect, pr.dstRect, pr.style, 0, 0, null)
+                ? Connectors.computeLayout(pr.rv, pr.srcRect, pr.dstRect, pr.style, 0, 0, null,
+                                           avoidRectsFor(pr))
                 : Connectors.computeLayout(pr.rv, pr.srcRect, pr.dstRect, pr.style,
-                                           off[0], off[1], (int) off[2]));
+                                           off[0], off[1], (int) off[2], avoidRectsFor(pr)));
         }
+    }
+
+    /**
+     * Foreign boxes a direct line for this relationship must route around: every
+     * element box and boundary frame except the endpoints themselves and any frame
+     * that contains an endpoint (lines legitimately cross those to get in or out).
+     */
+    private List<double[]> avoidRectsFor(PendingRel pr) {
+        List<double[]> out = new ArrayList<>();
+        double[] s = pr.srcRect(), d = pr.dstRect();
+        for (double[] o : elementObstacles) {
+            double[] r = {o[0] - o[2] / 2.0, o[1] - o[3] / 2.0, o[2], o[3]};
+            if (sameRect(r, s) || sameRect(r, d)) continue;
+            out.add(r);
+        }
+        for (double[] f : boundaryFrames) {
+            if (sameRect(f, s) || sameRect(f, d)) continue;
+            if (containsCenter(f, s) || containsCenter(f, d)) continue;
+            out.add(f);
+        }
+        return out;
+    }
+
+    private static boolean sameRect(double[] a, double[] b) {
+        return Math.abs(a[0] - b[0]) < 1 && Math.abs(a[1] - b[1]) < 1
+            && Math.abs(a[2] - b[2]) < 1 && Math.abs(a[3] - b[3]) < 1;
+    }
+
+    private static boolean containsCenter(double[] frame, double[] rect) {
+        double cx = rect[0] + rect[2] / 2.0, cy = rect[1] + rect[3] / 2.0;
+        return cx >= frame[0] && cx <= frame[0] + frame[2]
+            && cy >= frame[1] && cy <= frame[1] + frame[3];
     }
 
     /**
@@ -252,7 +288,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
      *    push labels away from the crossing obstacles.  Runs until no collision
      *    remains or the iteration cap is hit.
      */
-    private static void repelLabels(List<Connectors.LabelInfo> labels, List<double[]> elementObstacles) {
+    private static void repelLabels(List<Connectors.LabelInfo> labels, List<double[]> elementObstacles,
+                                    List<double[]> boundaryFrames) {
         // --- Phase 1: find crossing obstacles ---
         List<double[]> crossings = new ArrayList<>();
         for (int i = 0; i < labels.size(); i++) {
@@ -270,9 +307,19 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             }
         }
 
+        // Arrowhead zones: a label box must not mask the pointy end of any line,
+        // including its own.
+        List<double[]> arrowTips = new ArrayList<>();
+        for (Connectors.LabelInfo li : labels) {
+            if (!li.pathPoints.isEmpty()) {
+                arrowTips.add(li.pathPoints.get(li.pathPoints.size() - 1));
+            }
+        }
+
         // --- Phase 2: iterative repulsion with tethering ---
         // Obstacle zone: label-sized forbidden region around each crossing point.
         final int OBS_W = 110, OBS_H = 70;
+        final int TIP_W = 70, TIP_H = 70;
         final int MAX_ITER = 60;
         // Tether strength: each iteration the label is pulled 35% toward the nearest
         // point on its OWN path.  Using the nearest path point (not the fixed origin)
@@ -304,6 +351,52 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
                         if (len < 1) { dx = 0; dy = -1; len = 1; } // default: push upward
                         li.labelX += (ox / 2.0 + 4) * (dx / len);
                         li.labelY += (oy / 2.0 + 4) * (dy / len);
+                    }
+                }
+            }
+
+            // Label vs arrowhead (label moves; arrow tip is fixed)
+            for (Connectors.LabelInfo li : labels) {
+                if (!li.hasLabel) continue;
+                for (double[] tip : arrowTips) {
+                    double ox = overlapAxis(li.labelX, li.labelW, tip[0], TIP_W);
+                    double oy = overlapAxis(li.labelY, li.labelH, tip[1], TIP_H);
+                    if (ox > 0 && oy > 0) {
+                        moved = true;
+                        double dx = li.labelX - tip[0];
+                        double dy = li.labelY - tip[1];
+                        double len = Math.sqrt(dx * dx + dy * dy);
+                        if (len < 1) { dx = 0; dy = -1; len = 1; }
+                        li.labelX += (ox / 2.0 + 4) * (dx / len);
+                        li.labelY += (oy / 2.0 + 4) * (dy / len);
+                    }
+                }
+            }
+
+            // Label vs boundary frame edges: nudge the label fully to one side so it
+            // doesn't straddle the frame line.
+            for (Connectors.LabelInfo li : labels) {
+                if (!li.hasLabel) continue;
+                for (double[] f : boundaryFrames) {
+                    double left = li.labelX - li.labelW / 2.0, right  = li.labelX + li.labelW / 2.0;
+                    double top  = li.labelY - li.labelH / 2.0, bottom = li.labelY + li.labelH / 2.0;
+                    for (double ex : new double[]{f[0], f[0] + f[2]}) {
+                        if (left < ex && right > ex && bottom > f[1] && top < f[1] + f[3]) {
+                            moved = true;
+                            if (li.labelX >= ex) li.labelX += (ex - left) + 4;
+                            else                 li.labelX -= (right - ex) + 4;
+                            left  = li.labelX - li.labelW / 2.0;
+                            right = li.labelX + li.labelW / 2.0;
+                        }
+                    }
+                    for (double ey : new double[]{f[1], f[1] + f[3]}) {
+                        if (top < ey && bottom > ey && right > f[0] && left < f[0] + f[2]) {
+                            moved = true;
+                            if (li.labelY >= ey) li.labelY += (ey - top) + 4;
+                            else                 li.labelY -= (bottom - ey) + 4;
+                            top    = li.labelY - li.labelH / 2.0;
+                            bottom = li.labelY + li.labelH / 2.0;
+                        }
                     }
                 }
             }
@@ -662,6 +755,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         if (state.elementId != null) {
             boundaryRects.put(state.elementId, new double[]{bx, by, bw, bh});
         }
+
+        boundaryFrames.add(new double[]{bx, by, bw, bh});
 
         String dashAttr = dashArray.isEmpty() ? "" : String.format(" stroke-dasharray=\"%s\"", dashArray);
         writer.writeLine(String.format(

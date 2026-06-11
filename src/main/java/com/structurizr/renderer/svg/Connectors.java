@@ -100,6 +100,17 @@ public class Connectors {
     static LabelInfo computeLayout(RelationshipView rv, double[] srcRect, double[] dstRect,
                                     RelationshipStyle style, double offsetX, double offsetY,
                                     Integer positionOverride) {
+        return computeLayout(rv, srcRect, dstRect, style, offsetX, offsetY, positionOverride, null);
+    }
+
+    /**
+     * As above; {@code avoid} (nullable) lists foreign boxes [x, y, w, h] that a
+     * plain direct line must not pass through — detour waypoints are inserted
+     * around them.
+     */
+    static LabelInfo computeLayout(RelationshipView rv, double[] srcRect, double[] dstRect,
+                                    RelationshipStyle style, double offsetX, double offsetY,
+                                    Integer positionOverride, List<double[]> avoid) {
         Relationship rel = rv.getRelationship();
 
         String rawColor  = style.getColor();
@@ -163,6 +174,13 @@ public class Connectors {
             pathPoints.add(new double[]{p2[0] - ux * inset + corrX, p2[1] - uy * inset + corrY});
             pathPoints.add(p2);
 
+            if (avoid != null && !avoid.isEmpty()) {
+                // Stagger clearance per corridor side so a pair detouring around the
+                // same box doesn't collapse onto identical corner points.
+                double clearance = 30 + (offsetX + offsetY > 0 ? 0 : 22);
+                insertDetours(pathPoints, avoid, clearance);
+            }
+
             StringBuilder path = new StringBuilder();
             path.append(String.format("M %.1f %.1f", p1[0], p1[1]));
             for (int i = 1; i < pathPoints.size(); i++) {
@@ -189,14 +207,16 @@ public class Connectors {
             pathPoints.add(p2);
 
             if (!routingVertices.isEmpty()) {
-                StringBuilder path = new StringBuilder();
-                path.append(String.format("M %.1f %.1f", p1[0], p1[1]));
-                for (Vertex v : routingVertices) {
-                    path.append(String.format(" L %d %d", v.getX(), v.getY()));
+                if (avoid != null && !avoid.isEmpty()) {
+                    insertDetours(pathPoints, avoid, 30);
                 }
-                path.append(String.format(" L %.1f %.1f", p2[0], p2[1]));
+                StringBuilder path = new StringBuilder();
+                path.append(String.format("M %.1f %.1f", pathPoints.get(0)[0], pathPoints.get(0)[1]));
+                for (int i = 1; i < pathPoints.size(); i++) {
+                    path.append(String.format(" L %.1f %.1f", pathPoints.get(i)[0], pathPoints.get(i)[1]));
+                }
                 pathD = path.toString();
-                double[] lpos = polylinePointAtFraction(p1, routingVertices, p2, position / 100.0);
+                double[] lpos = pathPointAtFraction(pathPoints, position / 100.0);
                 labelX = lpos[0];
                 labelY = lpos[1] - 6;
             } else if (routing == Routing.Curved) {
@@ -217,10 +237,25 @@ public class Connectors {
                 labelX = lp[0];
                 labelY = lp[1] - 6;
             } else {
-                pathD  = String.format("M %.1f %.1f L %.1f %.1f", p1[0], p1[1], p2[0], p2[1]);
-                double t = position / 100.0;
-                labelX = p1[0] + t * (p2[0] - p1[0]);
-                labelY = p1[1] + t * (p2[1] - p1[1]) - 6;
+                if (avoid != null && !avoid.isEmpty()) {
+                    insertDetours(pathPoints, avoid, 30);
+                }
+                if (pathPoints.size() > 2) {
+                    StringBuilder path = new StringBuilder();
+                    path.append(String.format("M %.1f %.1f", pathPoints.get(0)[0], pathPoints.get(0)[1]));
+                    for (int i = 1; i < pathPoints.size(); i++) {
+                        path.append(String.format(" L %.1f %.1f", pathPoints.get(i)[0], pathPoints.get(i)[1]));
+                    }
+                    pathD = path.toString();
+                    double[] lpos = pathPointAtFraction(pathPoints, position / 100.0);
+                    labelX = lpos[0];
+                    labelY = lpos[1] - 6;
+                } else {
+                    pathD  = String.format("M %.1f %.1f L %.1f %.1f", p1[0], p1[1], p2[0], p2[1]);
+                    double t = position / 100.0;
+                    labelX = p1[0] + t * (p2[0] - p1[0]);
+                    labelY = p1[1] + t * (p2[1] - p1[1]) - 6;
+                }
             }
         }
 
@@ -257,6 +292,94 @@ public class Connectors {
                              descLines, techLines,
                              fontSize, techFontSize, descLineH, techLineH,
                              labelW, labelH);
+    }
+
+    /**
+     * Inserts corner waypoints so the polyline routes around foreign boxes instead
+     * of cutting through them. Greedy: for each piercing segment, detour via the
+     * cheapest inflated-box corner (or pair of adjacent corners) that clears it.
+     */
+    private static void insertDetours(List<double[]> pts, List<double[]> avoid, double CLEAR) {
+        for (int guard = 0; guard < 12; guard++) {
+            boolean changed = false;
+            outer:
+            for (int i = 0; i < pts.size() - 1; i++) {
+                double[] a = pts.get(i), b = pts.get(i + 1);
+                for (double[] r : avoid) {
+                    double rx = r[0] - CLEAR, ry = r[1] - CLEAR;
+                    double rw = r[2] + 2 * CLEAR, rh = r[3] + 2 * CLEAR;
+                    if (!segmentIntersectsRect(a, b, rx, ry, rw, rh)) continue;
+
+                    double[][] corners = {
+                        {rx, ry}, {rx + rw, ry}, {rx + rw, ry + rh}, {rx, ry + rh}
+                    };
+                    double straight = Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+                    // Single corner that clears the box
+                    double bestExtra = Double.MAX_VALUE;
+                    double[] best = null;
+                    for (double[] c : corners) {
+                        if (segmentIntersectsRect(a, c, rx, ry, rw, rh)
+                                || segmentIntersectsRect(c, b, rx, ry, rw, rh)) continue;
+                        double extra = Math.hypot(c[0] - a[0], c[1] - a[1])
+                                     + Math.hypot(b[0] - c[0], b[1] - c[1]) - straight;
+                        if (extra < bestExtra) { bestExtra = extra; best = c; }
+                    }
+                    if (best != null) {
+                        pts.add(i + 1, best);
+                        changed = true;
+                        break outer;
+                    }
+
+                    // Pair of adjacent corners (around one side of the box)
+                    double[] bestC1 = null, bestC2 = null;
+                    bestExtra = Double.MAX_VALUE;
+                    for (int s = 0; s < 4; s++) {
+                        double[] c1 = corners[s], c2 = corners[(s + 1) % 4];
+                        for (int order = 0; order < 2; order++) {
+                            double[] f = order == 0 ? c1 : c2;
+                            double[] g = order == 0 ? c2 : c1;
+                            if (segmentIntersectsRect(a, f, rx, ry, rw, rh)
+                                    || segmentIntersectsRect(g, b, rx, ry, rw, rh)) continue;
+                            double extra = Math.hypot(f[0] - a[0], f[1] - a[1])
+                                         + Math.hypot(g[0] - f[0], g[1] - f[1])
+                                         + Math.hypot(b[0] - g[0], b[1] - g[1]) - straight;
+                            if (extra < bestExtra) { bestExtra = extra; bestC1 = f; bestC2 = g; }
+                        }
+                    }
+                    if (bestC1 != null) {
+                        pts.add(i + 1, bestC2);
+                        pts.add(i + 1, bestC1);
+                        changed = true;
+                        break outer;
+                    }
+                }
+            }
+            if (!changed) return;
+        }
+    }
+
+    /** Liang–Barsky: true when the segment passes through the rect's interior
+     *  (slightly shrunk so edge-grazing detour segments don't count). */
+    private static boolean segmentIntersectsRect(double[] a, double[] b,
+                                                 double rx, double ry, double rw, double rh) {
+        double e = 0.5;
+        double minX = rx + e, minY = ry + e, maxX = rx + rw - e, maxY = ry + rh - e;
+        double dx = b[0] - a[0], dy = b[1] - a[1];
+        double t0 = 0, t1 = 1;
+        double[] p = {-dx, dx, -dy, dy};
+        double[] q = {a[0] - minX, maxX - a[0], a[1] - minY, maxY - a[1]};
+        for (int i = 0; i < 4; i++) {
+            if (Math.abs(p[i]) < 1e-12) {
+                if (q[i] < 0) return false;
+            } else {
+                double t = q[i] / p[i];
+                if (p[i] < 0) t0 = Math.max(t0, t);
+                else          t1 = Math.min(t1, t);
+                if (t0 > t1) return false;
+            }
+        }
+        return t1 - t0 > 1e-6;
     }
 
     /** Render only the path line (arrow) for one relationship. */
@@ -299,15 +422,6 @@ public class Connectors {
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
-
-    private static double[] polylinePointAtFraction(double[] p1, Collection<Vertex> vertices,
-                                                      double[] p2, double fraction) {
-        List<double[]> pts = new ArrayList<>();
-        pts.add(p1);
-        for (Vertex v : vertices) pts.add(new double[]{v.getX(), v.getY()});
-        pts.add(p2);
-        return pathPointAtFraction(pts, fraction);
-    }
 
     /** Point at the given length fraction along a polyline. */
     private static double[] pathPointAtFraction(List<double[]> pts, double fraction) {
