@@ -9,8 +9,16 @@ import java.nio.charset.StandardCharsets;
 
 public class PngRenderer {
 
-    public static void render(String svgContent, File outputFile) throws Exception {
+    /**
+     * Rasterizes the SVG to a PNG file.  When {@code width} is non-null the output
+     * is scaled to that pixel width (preserving aspect ratio); otherwise the PNG
+     * matches the SVG's natural size.
+     */
+    public static void render(String svgContent, File outputFile, Integer width) throws Exception {
         PNGTranscoder transcoder = new PNGTranscoder();
+        if (width != null) {
+            transcoder.addTranscodingHint(PNGTranscoder.KEY_WIDTH, (float) width);
+        }
 
         byte[] svgBytes = svgContent.getBytes(StandardCharsets.UTF_8);
         try (InputStream in  = new ByteArrayInputStream(svgBytes);

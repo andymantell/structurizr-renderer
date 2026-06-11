@@ -59,6 +59,11 @@ public class RenderCommand implements Callable<Integer> {
                         + "e.g. http://proxy.example.com:8080 or proxy.example.com:8080")
     private String proxy;
 
+    @Option(names = {"--png-width"},
+            description = "Width in pixels of PNG output, preserving aspect ratio "
+                        + "(default: the SVG's natural size)")
+    private Integer pngWidth;
+
     @Option(names = {"--verbose"},
             description = "Print full stack traces on errors")
     private boolean verbose;
@@ -139,7 +144,7 @@ public class RenderCommand implements Callable<Integer> {
 
             if (doPng) {
                 File pngFile = new File(outDir, diagram.getKey() + ".png");
-                PngRenderer.render(svg, pngFile);
+                PngRenderer.render(svg, pngFile, pngWidth);
                 System.out.println("Written: " + pngFile);
             }
         }
