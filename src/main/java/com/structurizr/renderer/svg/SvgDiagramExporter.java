@@ -79,7 +79,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             "version=\"1.1\" width=\"" + W_TOKEN + "\" height=\"" + H_TOKEN + "\" " +
             "viewBox=\"0 0 " + W_TOKEN + " " + H_TOKEN + "\">");
         writer.writeLine(String.format("<rect width=\"" + W_TOKEN + "\" height=\"" + H_TOKEN + "\" fill=\"%s\"/>", bg));
-        writer.writeLine(Connectors.DEFS_BLOCK);
+        writer.writeLine(Connectors.defsBlock());
         writer.writeLine("<g transform=\"translate(" + TX_TOKEN + "," + TY_TOKEN + ")\">");
     }
 

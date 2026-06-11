@@ -9,12 +9,25 @@ import java.util.List;
 
 public class Connectors {
 
-    static final String DEFS_BLOCK =
-        "<defs>" +
-        "<marker id=\"arrow\" orient=\"auto\" overflow=\"visible\" markerUnits=\"userSpaceOnUse\">" +
-        "<path transform=\"rotate(180)\" d=\"M 20 -10 0 0 20 10 Z\" stroke=\"#444444\" fill=\"#444444\"/>" +
-        "</marker>" +
-        "</defs>\n";
+    /** Shared defs: embedded font, arrowhead marker, soft element shadow. */
+    static String defsBlock() {
+        String fontCss = BundledFonts.fontFaceCss();
+        return "<defs>\n"
+            + (fontCss.isEmpty() ? "" : "<style type=\"text/css\">\n" + fontCss + "\n</style>\n")
+            // Sleek chevron arrowhead with a slightly concave back
+            + "<marker id=\"arrow\" orient=\"auto\" overflow=\"visible\" markerUnits=\"userSpaceOnUse\">"
+            + "<path transform=\"rotate(180)\" d=\"M 0 0 L 18 -7 L 14 0 L 18 7 Z\" fill=\"#444444\"/>"
+            + "</marker>\n"
+            // Soft drop shadow, spelled out long-hand for Batik compatibility
+            + "<filter id=\"elem-shadow\" x=\"-15%\" y=\"-15%\" width=\"130%\" height=\"130%\">"
+            + "<feGaussianBlur in=\"SourceAlpha\" stdDeviation=\"5\"/>"
+            + "<feOffset dx=\"0\" dy=\"3\" result=\"ob\"/>"
+            + "<feFlood flood-color=\"#000000\" flood-opacity=\"0.22\"/>"
+            + "<feComposite in2=\"ob\" operator=\"in\"/>"
+            + "<feMerge><feMergeNode/><feMergeNode in=\"SourceGraphic\"/></feMerge>"
+            + "</filter>\n"
+            + "</defs>\n";
+    }
 
     // -------------------------------------------------------------------------
     // Public API used by SvgDiagramExporter

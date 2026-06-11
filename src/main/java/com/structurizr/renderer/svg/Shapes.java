@@ -10,7 +10,7 @@ import java.util.List;
 
 public class Shapes {
 
-    static final String DEFAULT_FONT = "Tahoma, Verdana, Helvetica, Arial";
+    static final String DEFAULT_FONT = BundledFonts.FAMILY + ", Helvetica, Arial, sans-serif";
 
     /** Returns [width, height] with shape-aware defaults matching the reference renderer. */
     static int[] defaultDimensions(Element element, ElementStyle style) {

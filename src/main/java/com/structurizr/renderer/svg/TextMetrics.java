@@ -8,19 +8,16 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Measures rendered text widths using AWT font metrics (works headless — no
- * display required).  The SVG output declares the font stack
- * "Tahoma, Verdana, Helvetica, Arial"; measurement uses the first of those
- * families installed locally, falling back to the logical sans-serif font.
- * A small safety factor compensates for metric differences between the
- * measuring font and whatever font the viewer ultimately renders with, so
- * wrapped lines and obstacle boxes never under-estimate.
+ * display required). Measurement uses the bundled Inter font — the same font
+ * embedded into the SVG output — so wrapping decisions are deterministic
+ * across platforms and match what the viewer renders. A small safety factor
+ * covers antialiasing/hinting differences.
  */
 final class TextMetrics {
 
     private static final FontRenderContext FRC =
         new FontRenderContext(new AffineTransform(), true, true);
-    private static final double SAFETY = 1.05;
-    private static final String FAMILY = pickFamily();
+    private static final double SAFETY = 1.03;
     private static final ConcurrentHashMap<Integer, Font> FONT_CACHE = new ConcurrentHashMap<>();
 
     private TextMetrics() {
@@ -30,15 +27,23 @@ final class TextMetrics {
     static double width(String text, int fontSize, boolean bold) {
         if (text == null || text.isEmpty()) return 0;
         Font font = FONT_CACHE.computeIfAbsent(fontSize * 2 + (bold ? 1 : 0),
-            k -> new Font(FAMILY, bold ? Font.BOLD : Font.PLAIN, fontSize));
+            k -> sized(fontSize, bold));
         return font.getStringBounds(text, FRC).getWidth() * SAFETY;
     }
 
-    private static String pickFamily() {
+    private static Font sized(int fontSize, boolean bold) {
+        Font base = BundledFonts.font(bold);
+        if (base != null) {
+            return base.deriveFont((float) fontSize);
+        }
+        return new Font(fallbackFamily(), bold ? Font.BOLD : Font.PLAIN, fontSize);
+    }
+
+    private static String fallbackFamily() {
         try {
             String[] available = GraphicsEnvironment.getLocalGraphicsEnvironment()
                 .getAvailableFontFamilyNames();
-            for (String wanted : new String[]{"Tahoma", "Verdana", "Helvetica", "Arial"}) {
+            for (String wanted : new String[]{"Helvetica", "Arial", "Tahoma", "Verdana"}) {
                 for (String name : available) {
                     if (name.equalsIgnoreCase(wanted)) return name;
                 }
