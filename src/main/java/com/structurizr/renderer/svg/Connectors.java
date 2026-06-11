@@ -157,8 +157,15 @@ public class Connectors {
                 double cpX = midX - dy * 0.2;
                 double cpY = midY + dx * 0.2;
                 pathD  = String.format("M %.1f %.1f Q %.1f %.1f %.1f %.1f", p1[0], p1[1], cpX, cpY, p2[0], p2[1]);
-                labelX = cpX;
-                labelY = cpY - 6;
+                // Replace the straight chord with samples along the curve so crossing
+                // detection, tethering and clearance act on the visible geometry.
+                pathPoints.clear();
+                for (double t = 0; t <= 1.0001; t += 0.125) {
+                    pathPoints.add(quadPoint(p1, cpX, cpY, p2, t));
+                }
+                double[] lp = quadPoint(p1, cpX, cpY, p2, position / 100.0);
+                labelX = lp[0];
+                labelY = lp[1] - 6;
             } else {
                 pathD  = String.format("M %.1f %.1f L %.1f %.1f", p1[0], p1[1], p2[0], p2[1]);
                 double t = position / 100.0;
@@ -273,6 +280,14 @@ public class Connectors {
             cum += seg;
         }
         return pts.get(pts.size() - 1);
+    }
+
+    /** Point on a quadratic Bézier (p1, control cp, p2) at parameter t. */
+    private static double[] quadPoint(double[] p1, double cpX, double cpY, double[] p2, double t) {
+        double u = 1 - t;
+        return new double[]{
+            u*u*p1[0] + 2*u*t*cpX + t*t*p2[0],
+            u*u*p1[1] + 2*u*t*cpY + t*t*p2[1]};
     }
 
     /** Point on a cubic Bézier (p0, control c1, control c2, p3) at parameter t. */
