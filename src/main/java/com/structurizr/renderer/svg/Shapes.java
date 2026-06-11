@@ -232,12 +232,14 @@ public class Shapes {
 
         StringBuilder sb = new StringBuilder();
         sb.append(openGroup(element));
-        sb.append(String.format("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            x + rx, y, w - 2 * rx, h, bg, stroke, sw));
+        // Body as a single closed path so the fill includes the bulging right end cap;
+        // the concave left edge is covered by the full end ellipse drawn on top.
+        sb.append(String.format(
+            "<path d=\"M %d %d l %d 0 a %d %d 0 0 1 0 %d l -%d 0 a %d %d 0 0 0 0 -%d\" " +
+            "fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
+            x + rx, y, w - 2 * rx, rx, ry, h, w - 2 * rx, rx, ry, h, bg, stroke, sw));
         sb.append(String.format("<ellipse cx=\"%d\" cy=\"%d\" rx=\"%d\" ry=\"%d\" fill=\"%s\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
             x + rx, y + ry, rx, ry, shadeColor(bg, 15), stroke, sw));
-        sb.append(String.format("<path d=\"M %d %d a %d %d 0 0 1 0 %d\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"/>\n",
-            x + w - rx, y, rx, ry, h, stroke, sw));
         sb.append(renderBoxText(view, element, style, x + rx, y, w - 2 * rx, h));
         sb.append("</g>\n");
         return sb.toString();
