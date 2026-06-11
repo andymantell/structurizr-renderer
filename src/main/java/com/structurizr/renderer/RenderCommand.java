@@ -65,9 +65,10 @@ public class RenderCommand implements Callable<Integer> {
             LayoutStrategyFactory.create().applyLayout(workspace);
         }
 
-        // Determine output directory
+        // Determine output directory. getAbsoluteFile() ensures a parent exists even
+        // when the DSL file is given as a bare filename like "diagram.dsl".
         File outDir = outputDir.isEmpty()
-            ? dslFile.getParentFile()
+            ? dslFile.getAbsoluteFile().getParentFile()
             : new File(outputDir);
         outDir.mkdirs();
 
