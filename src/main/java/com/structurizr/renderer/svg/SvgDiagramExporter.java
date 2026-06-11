@@ -390,10 +390,21 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
         RelationshipStyle style = findRelationshipStyle(view, rel);
 
+        double[] srcRect = connectionRect(view, srcEv);
+        double[] dstRect = connectionRect(view, dstEv);
+
+        // Dynamic-view response steps reuse the underlying model relationship but
+        // flow in the opposite direction — swap the endpoints so the arrow points
+        // back from destination to source.
+        if (Boolean.TRUE.equals(rv.isResponse())) {
+            double[] tmp = srcRect;
+            srcRect = dstRect;
+            dstRect = tmp;
+        }
+
         // Defer rendering: collect layout data so we can run a repulsion pass over all labels
         // before writing anything, ensuring crossing-edge labels don't overlap.
-        pendingRelationships.add(Connectors.computeLayout(rv,
-            connectionRect(view, srcEv), connectionRect(view, dstEv), style));
+        pendingRelationships.add(Connectors.computeLayout(rv, srcRect, dstRect, style));
     }
 
     /**

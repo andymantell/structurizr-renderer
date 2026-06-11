@@ -90,6 +90,28 @@ class SvgDiagramExporterTest {
     }
 
     @Test
+    void dynamicViewResponseStepsPointBackwards() throws Exception {
+        Workspace workspace = new Workspace("test", "");
+        var a = workspace.getModel().addSoftwareSystem("System A");
+        var b = workspace.getModel().addSoftwareSystem("System B");
+        a.uses(b, "Requests data from");
+
+        var view = workspace.getViews().createDynamicView("dyn", "");
+        view.add(a, "Requests data from", b);
+        view.add(b, "Sends data back to", a); // response step over the same relationship
+        view.getElementView(a).setX(100);
+        view.getElementView(a).setY(100);
+        view.getElementView(b).setX(1200);
+        view.getElementView(b).setY(100);
+
+        Diagram d = new SvgDiagramExporter().export(workspace).iterator().next();
+        String svg = d.getDefinition();
+        // Forward step: right edge of A -> left edge of B; response: the reverse
+        assertTrue(svg.contains("M 550.0 250.0 L 1200.0 250.0"), "Forward step path missing");
+        assertTrue(svg.contains("M 1200.0 250.0 L 550.0 250.0"), "Response step should be reversed");
+    }
+
+    @Test
     void negativeCoordinatesAreShiftedOntoCanvas() throws Exception {
         Workspace workspace = new Workspace("test", "");
         var a = workspace.getModel().addSoftwareSystem("System A");
