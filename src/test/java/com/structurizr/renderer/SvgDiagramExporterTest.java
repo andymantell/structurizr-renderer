@@ -73,6 +73,27 @@ class SvgDiagramExporterTest {
     }
 
     @Test
+    void negativeCoordinatesAreShiftedOntoCanvas() throws Exception {
+        Workspace workspace = new Workspace("test", "");
+        var a = workspace.getModel().addSoftwareSystem("System A");
+        var b = workspace.getModel().addSoftwareSystem("System B");
+        a.uses(b, "");
+
+        var view = workspace.getViews().createSystemLandscapeView("landscape", "");
+        view.addAllElements();
+        view.getElementView(a).setX(-500);
+        view.getElementView(a).setY(-300);
+        view.getElementView(b).setX(500);
+        view.getElementView(b).setY(300);
+
+        Diagram d = new SvgDiagramExporter().export(workspace).iterator().next();
+        String svg = d.getDefinition();
+        // PADDING(50) - minX(-500) = 550, PADDING(50) - minY(-300) = 350
+        assertTrue(svg.contains("translate(550,350)"),
+            "Group translate should shift negative coordinates onto the canvas");
+    }
+
+    @Test
     void rendersAwsAllServices() throws Exception {
         File dsl = new File("src/test/resources/fixtures/aws-all-services.dsl");
         assertTrue(dsl.exists(), "Fixture not found: " + dsl.getAbsolutePath());

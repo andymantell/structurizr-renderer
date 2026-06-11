@@ -18,8 +18,10 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     private static final int BOUNDARY_LABEL_HEIGHT = 55; // extra bottom space for the 33px bold label + margin
 
     // Placeholder tokens replaced in createDiagram once actual bounds are known
-    private static final String W_TOKEN = "__SVG_CANVAS_W__";
-    private static final String H_TOKEN = "__SVG_CANVAS_H__";
+    private static final String W_TOKEN  = "__SVG_CANVAS_W__";
+    private static final String H_TOKEN  = "__SVG_CANVAS_H__";
+    private static final String TX_TOKEN = "__SVG_TRANSLATE_X__";
+    private static final String TY_TOKEN = "__SVG_TRANSLATE_Y__";
 
     // Per-view state (reset in writeHeader)
     private ModelView currentView;
@@ -29,7 +31,11 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     // in repelLabels so relationship labels don't paint over element label text.
     // Each entry: [centerX, centerY, width, height]
     private List<double[]> elementObstacles;
-    // Tracks max right/bottom edge in group (translated) space across all drawn content
+    // Tracks the bounding box of all drawn content in model space.  Min can be
+    // negative (manually positioned elements / vertices); createDiagram() shifts
+    // the group translate so everything lands inside the canvas.
+    private int actualMinX;
+    private int actualMinY;
     private int actualMaxX;
     private int actualMaxY;
 
@@ -43,6 +49,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         this.boundaryStack = new ArrayDeque<>();
         this.pendingRelationships = new ArrayList<>();
         this.elementObstacles = new ArrayList<>();
+        this.actualMinX = 0;
+        this.actualMinY = 0;
         this.actualMaxX = 0;
         this.actualMaxY = 0;
 
@@ -55,7 +63,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             "viewBox=\"0 0 " + W_TOKEN + " " + H_TOKEN + "\">");
         writer.writeLine(String.format("<rect width=\"" + W_TOKEN + "\" height=\"" + H_TOKEN + "\" fill=\"%s\"/>", bg));
         writer.writeLine(Connectors.DEFS_BLOCK);
-        writer.writeLine(String.format("<g transform=\"translate(%d,%d)\">", PADDING, PADDING));
+        writer.writeLine("<g transform=\"translate(" + TX_TOKEN + "," + TY_TOKEN + ")\">");
     }
 
     @Override
@@ -89,6 +97,24 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         pendingRelationships = deduped;
 
         repelLabels(pendingRelationships, elementObstacles);
+
+        // Fold relationship geometry (waypoints and final label boxes) into the tracked
+        // bounds so paths routed outside the element extent aren't clipped off-canvas.
+        for (Connectors.LabelInfo li : pendingRelationships) {
+            for (double[] p : li.pathPoints) {
+                actualMinX = Math.min(actualMinX, (int) Math.floor(p[0]));
+                actualMinY = Math.min(actualMinY, (int) Math.floor(p[1]));
+                actualMaxX = Math.max(actualMaxX, (int) Math.ceil(p[0]));
+                actualMaxY = Math.max(actualMaxY, (int) Math.ceil(p[1]));
+            }
+            if (li.hasLabel) {
+                actualMinX = Math.min(actualMinX, (int) Math.floor(li.labelX - li.labelW / 2.0));
+                actualMinY = Math.min(actualMinY, (int) Math.floor(li.labelY - li.labelH / 2.0));
+                actualMaxX = Math.max(actualMaxX, (int) Math.ceil(li.labelX + li.labelW / 2.0));
+                actualMaxY = Math.max(actualMaxY, (int) Math.ceil(li.labelY + li.labelH / 2.0));
+            }
+        }
+
         // Two-pass render: all arrow lines first, then all labels on top.
         // This guarantees no line from relationship B can paint over the label of relationship A.
         writer.writeLine("<g id=\"edges\">");
@@ -332,6 +358,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         int[] dims = Shapes.defaultDimensions(element, style);
         int w = dims[0], h = dims[1];
 
+        actualMinX = Math.min(actualMinX, ev.getX());
+        actualMinY = Math.min(actualMinY, ev.getY());
         actualMaxX = Math.max(actualMaxX, ev.getX() + w);
         actualMaxY = Math.max(actualMaxY, ev.getY() + h);
 
@@ -486,6 +514,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         int fontSize = 33;
 
         // Track actual drawn extent so createDiagram() can size the canvas correctly
+        actualMinX = Math.min(actualMinX, bx);
+        actualMinY = Math.min(actualMinY, by);
         actualMaxX = Math.max(actualMaxX, bx + bw);
         actualMaxY = Math.max(actualMaxY, by + bh);
 
@@ -543,12 +573,15 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     @Override
     protected Diagram createDiagram(ModelView view, String definition) {
         // Replace placeholder dimensions with the actual bounds tracked during rendering.
-        // actualMaxX/Y are in group (translated) space; add PADDING for the right/bottom margins.
-        int cw = actualMaxX + PADDING * 2;
-        int ch = actualMaxY + PADDING * 2;
+        // The translate shifts content so the minimum coordinate (possibly negative with
+        // manual layouts) lands at PADDING from the canvas edge.
+        int cw = (actualMaxX - actualMinX) + PADDING * 2;
+        int ch = (actualMaxY - actualMinY) + PADDING * 2;
         String fixed = definition
-            .replace(W_TOKEN, String.valueOf(cw))
-            .replace(H_TOKEN, String.valueOf(ch));
+            .replace(W_TOKEN,  String.valueOf(cw))
+            .replace(H_TOKEN,  String.valueOf(ch))
+            .replace(TX_TOKEN, String.valueOf(PADDING - actualMinX))
+            .replace(TY_TOKEN, String.valueOf(PADDING - actualMinY));
         return new SvgDiagram(view, fixed);
     }
 
