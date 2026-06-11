@@ -66,44 +66,122 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     }
 
     /**
-     * Iteratively push apart label bounding boxes that overlap.
-     * Each iteration nudges every overlapping pair in opposite directions until
-     * none overlap or the iteration limit is reached.
+     * Two-phase label placement:
+     *
+     * 1. Compute every pairwise edge-segment crossing point.  Each crossing becomes
+     *    an immovable obstacle — labels are repelled away from those points so they
+     *    don't sit ambiguously on top of an intersection.
+     *
+     * 2. Iteratively push apart label bounding boxes that overlap each other, and
+     *    push labels away from the crossing obstacles.  Runs until no collision
+     *    remains or the iteration cap is hit.
      */
     private static void repelLabels(List<Connectors.LabelInfo> labels) {
-        final int MAX_ITER = 30;
-        for (int iter = 0; iter < MAX_ITER; iter++) {
-            boolean moved = false;
-            for (int i = 0; i < labels.size(); i++) {
-                for (int j = i + 1; j < labels.size(); j++) {
-                    Connectors.LabelInfo a = labels.get(i);
-                    Connectors.LabelInfo b = labels.get(j);
-                    if (!a.hasLabel || !b.hasLabel) continue;
-
-                    double ax1 = a.labelX - a.labelW / 2.0, ax2 = a.labelX + a.labelW / 2.0;
-                    double ay1 = a.labelY - a.labelH / 2.0, ay2 = a.labelY + a.labelH / 2.0;
-                    double bx1 = b.labelX - b.labelW / 2.0, bx2 = b.labelX + b.labelW / 2.0;
-                    double by1 = b.labelY - b.labelH / 2.0, by2 = b.labelY + b.labelH / 2.0;
-
-                    double overlapX = Math.min(ax2, bx2) - Math.max(ax1, bx1);
-                    double overlapY = Math.min(ay2, by2) - Math.max(ay1, by1);
-
-                    if (overlapX > 0 && overlapY > 0) {
-                        moved = true;
-                        double dx = b.labelX - a.labelX;
-                        double dy = b.labelY - a.labelY;
-                        double len = Math.sqrt(dx * dx + dy * dy);
-                        if (len < 1) { dx = 0; dy = 1; len = 1; }
-                        // Push each label half the overlap distance plus a small gap
-                        double pushX = (overlapX / 2.0 + 4) * (dx / len);
-                        double pushY = (overlapY / 2.0 + 4) * (dy / len);
-                        a.labelX -= pushX;  a.labelY -= pushY;
-                        b.labelX += pushX;  b.labelY += pushY;
+        // --- Phase 1: find crossing obstacles ---
+        List<double[]> crossings = new ArrayList<>();
+        for (int i = 0; i < labels.size(); i++) {
+            for (int j = i + 1; j < labels.size(); j++) {
+                List<double[]> pi = labels.get(i).pathPoints;
+                List<double[]> pj = labels.get(j).pathPoints;
+                for (int si = 0; si < pi.size() - 1; si++) {
+                    for (int sj = 0; sj < pj.size() - 1; sj++) {
+                        double[] cross = segmentIntersect(
+                            pi.get(si), pi.get(si + 1),
+                            pj.get(sj), pj.get(sj + 1));
+                        if (cross != null) crossings.add(cross);
                     }
                 }
             }
+        }
+
+        // --- Phase 2: iterative repulsion with tethering ---
+        // Obstacle zone: label-sized forbidden region around each crossing point.
+        final int OBS_W = 110, OBS_H = 70;
+        final int MAX_ITER = 60;
+        // Tether strength: each iteration the label is pulled 8% back toward its
+        // original position.  This prevents runaway drift into adjacent element boxes
+        // while still allowing enough movement to clear crossings and other labels.
+        final double TETHER = 0.08;
+
+        for (int iter = 0; iter < MAX_ITER; iter++) {
+            boolean moved = false;
+
+            // Label vs label
+            for (int i = 0; i < labels.size(); i++) {
+                for (int j = i + 1; j < labels.size(); j++) {
+                    if (repelPair(labels.get(i), labels.get(j))) moved = true;
+                }
+            }
+
+            // Label vs crossing obstacle (label moves; obstacle is fixed)
+            for (Connectors.LabelInfo li : labels) {
+                if (!li.hasLabel) continue;
+                for (double[] c : crossings) {
+                    double ox = overlapAxis(li.labelX, li.labelW, c[0], OBS_W);
+                    double oy = overlapAxis(li.labelY, li.labelH, c[1], OBS_H);
+                    if (ox > 0 && oy > 0) {
+                        moved = true;
+                        double dx = li.labelX - c[0];
+                        double dy = li.labelY - c[1];
+                        double len = Math.sqrt(dx * dx + dy * dy);
+                        if (len < 1) { dx = 0; dy = -1; len = 1; } // default: push upward
+                        li.labelX += (ox / 2.0 + 4) * (dx / len);
+                        li.labelY += (oy / 2.0 + 4) * (dy / len);
+                    }
+                }
+            }
+
+            // Tethering: gently pull each label back toward its original position.
+            // Applied after repulsion so it can't prevent the label from clearing an
+            // obstacle, but dampens excessive drift over many iterations.
+            for (Connectors.LabelInfo li : labels) {
+                if (!li.hasLabel) continue;
+                li.labelX += (li.origLabelX - li.labelX) * TETHER;
+                li.labelY += (li.origLabelY - li.labelY) * TETHER;
+            }
+
             if (!moved) break;
         }
+    }
+
+    private static boolean repelPair(Connectors.LabelInfo a, Connectors.LabelInfo b) {
+        if (!a.hasLabel || !b.hasLabel) return false;
+        double ox = overlapAxis(a.labelX, a.labelW, b.labelX, b.labelW);
+        double oy = overlapAxis(a.labelY, a.labelH, b.labelY, b.labelH);
+        if (ox <= 0 || oy <= 0) return false;
+        double dx = b.labelX - a.labelX;
+        double dy = b.labelY - a.labelY;
+        double len = Math.sqrt(dx * dx + dy * dy);
+        if (len < 1) { dx = 0; dy = 1; len = 1; }
+        double pushX = (ox / 2.0 + 4) * (dx / len);
+        double pushY = (oy / 2.0 + 4) * (dy / len);
+        a.labelX -= pushX;  a.labelY -= pushY;
+        b.labelX += pushX;  b.labelY += pushY;
+        return true;
+    }
+
+    /** Overlap on one axis between two centred spans. Positive means they overlap. */
+    private static double overlapAxis(double ca, int wa, double cb, int wb) {
+        return Math.min(ca + wa / 2.0, cb + wb / 2.0) - Math.max(ca - wa / 2.0, cb - wb / 2.0);
+    }
+
+    /**
+     * Returns the intersection point of segments (a1→a2) and (b1→b2), or null if
+     * they don't cross.  Skips near-endpoint hits (t,s outside 0.05–0.95) so that
+     * elements which share a boundary don't produce false crossings.
+     */
+    private static double[] segmentIntersect(double[] a1, double[] a2, double[] b1, double[] b2) {
+        double dax = a2[0] - a1[0], day = a2[1] - a1[1];
+        double dbx = b2[0] - b1[0], dby = b2[1] - b1[1];
+        double cross = dax * dby - day * dbx;
+        if (Math.abs(cross) < 1e-10) return null; // parallel
+        double dx = b1[0] - a1[0], dy = b1[1] - a1[1];
+        double t = (dx * dby - dy * dbx) / cross;
+        double s = (dx * day  - dy * dax) / cross;
+        if (t > 0.05 && t < 0.95 && s > 0.05 && s < 0.95) {
+            return new double[]{a1[0] + t * dax, a1[1] + t * day};
+        }
+        return null;
     }
 
     // -------------------------------------------------------------------------

@@ -31,10 +31,16 @@ public class Connectors {
         final String color;
         final int    thickness;
 
+        // All points on the path (clipped endpoints + intermediate waypoints).
+        // Used by the crossing-detection pass in SvgDiagramExporter.
+        final List<double[]> pathPoints;
+
         // Label content (null lists / false hasLabel → no label)
         final boolean      hasLabel;
-              double       labelX;   // mutable — adjusted during repulsion
-              double       labelY;   // mutable
+              double       labelX;       // mutable — adjusted during repulsion
+              double       labelY;       // mutable
+        final double       origLabelX;   // initial position before repulsion
+        final double       origLabelY;
         final List<String> descLines;
         final List<String> techLines;
         final int fontSize;
@@ -47,6 +53,7 @@ public class Connectors {
         final int labelH;  // total block height including padding
 
         LabelInfo(String pathD, String dashAttr, String color, int thickness,
+                  List<double[]> pathPoints,
                   boolean hasLabel, double labelX, double labelY,
                   List<String> descLines, List<String> techLines,
                   int fontSize, int techFontSize, int descLineH, int techLineH,
@@ -55,9 +62,12 @@ public class Connectors {
             this.dashAttr     = dashAttr;
             this.color        = color;
             this.thickness    = thickness;
+            this.pathPoints   = pathPoints;
             this.hasLabel     = hasLabel;
             this.labelX       = labelX;
             this.labelY       = labelY;
+            this.origLabelX   = labelX;
+            this.origLabelY   = labelY;
             this.descLines    = descLines;
             this.techLines    = techLines;
             this.fontSize     = fontSize;
@@ -93,7 +103,10 @@ public class Connectors {
         int    thickness = style.getThickness() != null ? style.getThickness() : 2;
         boolean dashed   = style.getDashed()    != null ? style.getDashed()    : true;
         Routing routing  = style.getRouting()   != null ? style.getRouting()   : Routing.Direct;
-        int position     = style.getPosition()  != null ? style.getPosition()  : 50;
+        // Default to 25% (near source) rather than 50% (midpoint).
+        // Labels near the source end are above the region where edges typically cross,
+        // and the repulsion+crossing-avoidance pass then fine-tunes positions.
+        int position     = style.getPosition()  != null ? style.getPosition()  : 25;
         int fontSize     = style.getFontSize()  != null ? style.getFontSize()  : 24;
 
         String dashAttr = dashed ? " stroke-dasharray=\"8 8\"" : "";
@@ -101,6 +114,13 @@ public class Connectors {
         Collection<Vertex> routingVertices = rv.getVertices();
         String pathD;
         double labelX, labelY;
+
+        // Build the ordered list of path points (clipped endpoints + waypoints) once,
+        // for both path-string construction and crossing detection.
+        List<double[]> pathPoints = new ArrayList<>();
+        pathPoints.add(p1);
+        for (Vertex v : routingVertices) pathPoints.add(new double[]{v.getX(), v.getY()});
+        pathPoints.add(p2);
 
         if (!routingVertices.isEmpty()) {
             StringBuilder path = new StringBuilder();
@@ -158,6 +178,7 @@ public class Connectors {
         }
 
         return new LabelInfo(pathD, dashAttr, color, thickness,
+                             pathPoints,
                              hasLabel, labelX, labelY,
                              descLines, techLines,
                              fontSize, techFontSize, descLineH, techLineH,
