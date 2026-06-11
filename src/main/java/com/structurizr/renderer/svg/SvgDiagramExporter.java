@@ -23,9 +23,14 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     private static final String TX_TOKEN = "__SVG_TRANSLATE_X__";
     private static final String TY_TOKEN = "__SVG_TRANSLATE_Y__";
 
+    // Spacing between parallel lines when multiple relationships connect the
+    // same element pair (e.g. a request and its response).
+    private static final double PARALLEL_SPACING = 40;
+
     // Per-view state (reset in writeHeader)
     private ModelView currentView;
     private Deque<BoundaryState> boundaryStack;
+    private List<PendingRel> pendingRelData;
     private List<Connectors.LabelInfo> pendingRelationships;
     // Element bounding boxes collected during writeElement, used as static obstacles
     // in repelLabels so relationship labels don't paint over element label text.
@@ -53,6 +58,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     protected void writeHeader(ModelView view, IndentingWriter writer) {
         this.currentView = view;
         this.boundaryStack = new ArrayDeque<>();
+        this.pendingRelData = new ArrayList<>();
         this.pendingRelationships = new ArrayList<>();
         this.elementObstacles = new ArrayList<>();
         this.boundaryRects = new java.util.HashMap<>();
@@ -75,33 +81,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
     @Override
     protected void writeFooter(ModelView view, IndentingWriter writer) {
-        // Deduplicate: dynamic views supply both a static-model RelationshipView and a
-        // dynamic-step RelationshipView for the same element pair, producing identical
-        // path+label entries.  Collapse those, and drop unlabelled entries that share a
-        // path with a labelled one.  Entries with the same path but DIFFERENT labels are
-        // all kept — parallel relationships ("Reads from" / "Writes to") must not lose
-        // labels; the repulsion pass separates them visually.
-        java.util.Map<String, List<Connectors.LabelInfo>> byPath = new java.util.LinkedHashMap<>();
-        for (Connectors.LabelInfo li : pendingRelationships) {
-            byPath.computeIfAbsent(li.pathD, k -> new ArrayList<>()).add(li);
-        }
-        List<Connectors.LabelInfo> deduped = new ArrayList<>();
-        for (List<Connectors.LabelInfo> group : byPath.values()) {
-            boolean anyLabelled = group.stream().anyMatch(l -> l.hasLabel);
-            if (!anyLabelled) {
-                deduped.add(group.get(0));
-                continue;
-            }
-            java.util.Set<String> seenLabels = new java.util.HashSet<>();
-            for (Connectors.LabelInfo li : group) {
-                if (!li.hasLabel) continue;
-                String labelKey = String.join("\n", li.descLines) + "|" + String.join("\n", li.techLines);
-                if (seenLabels.add(labelKey)) {
-                    deduped.add(li);
-                }
-            }
-        }
-        pendingRelationships = deduped;
+        List<PendingRel> unique = dedupRelationships(pendingRelData);
+        spreadAndLayout(unique);
 
         repelLabels(pendingRelationships, elementObstacles);
 
@@ -138,6 +119,115 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
         writer.writeLine("</g>");
         writer.writeLine("</svg>");
+    }
+
+    /** Raw relationship data captured during writeRelationship, laid out in writeFooter. */
+    private record PendingRel(RelationshipView rv, double[] srcRect, double[] dstRect,
+                              RelationshipStyle style) {
+
+        boolean hasLabel() {
+            String desc = Connectors.effectiveDescription(rv);
+            String tech = rv.getRelationship().getTechnology();
+            return (desc != null && !desc.isEmpty()) || (tech != null && !tech.isEmpty());
+        }
+
+        String labelKey() {
+            return Connectors.effectiveDescription(rv) + "|" + rv.getRelationship().getTechnology();
+        }
+
+        boolean isSelf() {
+            return rv.getRelationship().getSourceId().equals(rv.getRelationship().getDestinationId());
+        }
+
+        String directedKey() {
+            return centerKey(srcRect) + ">" + centerKey(dstRect) + "|" + verticesKey();
+        }
+
+        /** Endpoint pair ignoring direction, for grouping parallel/opposite lines. */
+        String pairKey() {
+            String a = centerKey(srcRect), b = centerKey(dstRect);
+            return a.compareTo(b) <= 0 ? a + "~" + b : b + "~" + a;
+        }
+
+        private String verticesKey() {
+            StringBuilder sb = new StringBuilder();
+            for (Vertex v : rv.getVertices()) sb.append(v.getX()).append(',').append(v.getY()).append(';');
+            return sb.toString();
+        }
+
+        private static String centerKey(double[] r) {
+            return Math.round(r[0] + r[2] / 2) + "," + Math.round(r[1] + r[3] / 2);
+        }
+    }
+
+    /**
+     * Deduplicate relationship entries before layout.  Entries with the same directed
+     * endpoints, route and label text are duplicates (dynamic views supply both a
+     * static-model and a dynamic-step RelationshipView for the same pair); unlabelled
+     * entries sharing a route with a labelled one are dropped.  Entries with DIFFERENT
+     * labels are all kept — parallel relationships must not lose labels.
+     */
+    private static List<PendingRel> dedupRelationships(List<PendingRel> rels) {
+        java.util.Map<String, List<PendingRel>> byRoute = new java.util.LinkedHashMap<>();
+        for (PendingRel pr : rels) {
+            byRoute.computeIfAbsent(pr.directedKey(), k -> new ArrayList<>()).add(pr);
+        }
+        List<PendingRel> unique = new ArrayList<>();
+        for (List<PendingRel> group : byRoute.values()) {
+            boolean anyLabelled = group.stream().anyMatch(PendingRel::hasLabel);
+            if (!anyLabelled) {
+                unique.add(group.get(0));
+                continue;
+            }
+            java.util.Set<String> seenLabels = new java.util.HashSet<>();
+            for (PendingRel pr : group) {
+                if (pr.hasLabel() && seenLabels.add(pr.labelKey())) {
+                    unique.add(pr);
+                }
+            }
+        }
+        return unique;
+    }
+
+    /**
+     * Compute layouts, spreading relationships that share an element pair (requests
+     * and their responses, or parallel relationships) into perpendicular-offset
+     * parallel lines so each arrow is visually distinct.  Only direct vertex-less
+     * lines participate — routed paths already diverge.
+     */
+    private void spreadAndLayout(List<PendingRel> rels) {
+        java.util.Map<String, List<PendingRel>> byPair = new java.util.LinkedHashMap<>();
+        for (PendingRel pr : rels) {
+            if (pr.isSelf() || !pr.rv.getVertices().isEmpty()) continue;
+            byPair.computeIfAbsent(pr.pairKey(), k -> new ArrayList<>()).add(pr);
+        }
+
+        java.util.Map<PendingRel, double[]> offsets = new java.util.IdentityHashMap<>();
+        for (List<PendingRel> group : byPair.values()) {
+            if (group.size() < 2) continue;
+            // Perpendicular of the pair's canonical direction (smaller center key first)
+            // so opposite-direction members are pushed to opposite sides.
+            PendingRel first = group.get(0);
+            double[] a = first.srcRect, b = first.dstRect;
+            if (PendingRel.centerKey(a).compareTo(PendingRel.centerKey(b)) > 0) {
+                double[] tmp = a; a = b; b = tmp;
+            }
+            double dx = (b[0] + b[2] / 2) - (a[0] + a[2] / 2);
+            double dy = (b[1] + b[3] / 2) - (a[1] + a[3] / 2);
+            double len = Math.hypot(dx, dy);
+            if (len < 1) continue;
+            double px = -dy / len, py = dx / len;
+            for (int i = 0; i < group.size(); i++) {
+                double off = (i - (group.size() - 1) / 2.0) * PARALLEL_SPACING;
+                offsets.put(group.get(i), new double[]{px * off, py * off});
+            }
+        }
+
+        for (PendingRel pr : rels) {
+            double[] off = offsets.getOrDefault(pr, new double[]{0, 0});
+            pendingRelationships.add(
+                Connectors.computeLayout(pr.rv, pr.srcRect, pr.dstRect, pr.style, off[0], off[1]));
+        }
     }
 
     /**
@@ -402,9 +492,9 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             dstRect = tmp;
         }
 
-        // Defer rendering: collect layout data so we can run a repulsion pass over all labels
-        // before writing anything, ensuring crossing-edge labels don't overlap.
-        pendingRelationships.add(Connectors.computeLayout(rv, srcRect, dstRect, style));
+        // Defer layout until writeFooter: relationships sharing an element pair are
+        // spread into parallel lines, and a repulsion pass runs over all labels.
+        pendingRelData.add(new PendingRel(rv, srcRect, dstRect, style));
     }
 
     /**

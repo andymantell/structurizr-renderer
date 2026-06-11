@@ -79,14 +79,24 @@ public class Connectors {
         }
     }
 
+    /** The label text shown for a relationship view: the view-level description
+     *  (set on dynamic-view steps) when present, otherwise the model-level one. */
+    static String effectiveDescription(RelationshipView rv) {
+        String rvDesc = rv.getDescription();
+        return (rvDesc != null && !rvDesc.isEmpty()) ? rvDesc : rv.getRelationship().getDescription();
+    }
+
     /**
      * Compute path geometry and label position for one relationship.
      * srcRect/dstRect are {x, y, w, h} of the source/destination — either the
      * element's box, or the boundary rectangle when the endpoint is rendered as
      * a boundary (e.g. deployment nodes).
+     * (offsetX, offsetY) shifts the whole line sideways before clipping, used to
+     * spread multiple relationships between the same element pair into visually
+     * distinct parallel lines.
      */
     static LabelInfo computeLayout(RelationshipView rv, double[] srcRect, double[] dstRect,
-                                    RelationshipStyle style) {
+                                    RelationshipStyle style, double offsetX, double offsetY) {
         Relationship rel = rv.getRelationship();
 
         String rawColor  = style.getColor();
@@ -124,10 +134,10 @@ public class Connectors {
             labelX = ex + ext * 0.75;
             labelY = (topY + botY) / 2.0;
         } else {
-            double x1 = srcRect[0] + srcRect[2] / 2.0;
-            double y1 = srcRect[1] + srcRect[3] / 2.0;
-            double x2 = dstRect[0] + dstRect[2] / 2.0;
-            double y2 = dstRect[1] + dstRect[3] / 2.0;
+            double x1 = srcRect[0] + srcRect[2] / 2.0 + offsetX;
+            double y1 = srcRect[1] + srcRect[3] / 2.0 + offsetY;
+            double x2 = dstRect[0] + dstRect[2] / 2.0 + offsetX;
+            double y2 = dstRect[1] + dstRect[3] / 2.0 + offsetY;
 
             double[] p1 = clipToRect(x1, y1, x2, y2, srcRect[0], srcRect[1], srcRect[2], srcRect[3]);
             double[] p2 = clipToRect(x2, y2, x1, y1, dstRect[0], dstRect[1], dstRect[2], dstRect[3]);
@@ -174,10 +184,7 @@ public class Connectors {
             }
         }
 
-        // Prefer the view-level description (set on dynamic-view steps) over the model-level
-        // value, so step labels like "Submits credentials to" are shown correctly.
-        String rvDesc = rv.getDescription();
-        String description = (rvDesc != null && !rvDesc.isEmpty()) ? rvDesc : rel.getDescription();
+        String description = effectiveDescription(rv);
         String technology  = rel.getTechnology();
         boolean hasDesc    = description != null && !description.isEmpty();
         boolean hasTech    = technology  != null && !technology.isEmpty();
