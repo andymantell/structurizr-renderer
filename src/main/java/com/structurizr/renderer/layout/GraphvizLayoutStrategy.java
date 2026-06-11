@@ -35,6 +35,16 @@ public class GraphvizLayoutStrategy implements LayoutStrategy {
         }
 
         new GraphvizAutomaticLayout().apply(workspace);
+
+        // Graphviz never interleaves clusters and ranks topology over proximity,
+        // which can strand lightly-connected units far from their partners; let
+        // them settle closer.
+        for (ModelView view : allModelViews(workspace)) {
+            AutomaticLayout al = view.getAutomaticLayout();
+            if (al != null && al.getImplementation() == AutomaticLayout.Implementation.Graphviz) {
+                TensionRelief.apply(view);
+            }
+        }
     }
 
     private static List<ModelView> allModelViews(Workspace workspace) {

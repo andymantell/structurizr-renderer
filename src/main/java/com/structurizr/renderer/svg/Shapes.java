@@ -29,7 +29,7 @@ public class Shapes {
      * the wrapped text block wouldn't fit the shape's text area. Growth is centred
      * on the laid-out box so the element keeps the centre the layout gave it.
      */
-    static int[] elementRect(ModelView view, Element element, ElementStyle style, int evX, int evY) {
+    public static int[] elementRect(ModelView view, Element element, ElementStyle style, int evX, int evY) {
         int[] dims = defaultDimensions(element, style);
         int w = dims[0], h = dims[1];
         Shape shape = style.getShape() != null ? style.getShape() : Shape.Box;
