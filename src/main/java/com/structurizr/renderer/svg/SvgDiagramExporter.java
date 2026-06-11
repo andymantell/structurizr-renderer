@@ -4,7 +4,6 @@ import com.structurizr.export.AbstractDiagramExporter;
 import com.structurizr.export.Diagram;
 import com.structurizr.export.IndentingWriter;
 import com.structurizr.model.*;
-import com.structurizr.renderer.layout.ElkLayoutStrategy;
 import com.structurizr.view.*;
 
 import java.util.ArrayDeque;
@@ -73,7 +72,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         if (ev == null) return;
 
         ElementStyle style = findElementStyle(view, element);
-        int[] dims = ElkLayoutStrategy.defaultDimensions(element, style);
+        int[] dims = Shapes.defaultDimensions(element, style);
         int w = dims[0], h = dims[1];
 
         actualMaxX = Math.max(actualMaxX, ev.getX() + w);
@@ -190,7 +189,7 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
             if (ev == null) continue;
 
             ElementStyle style = findElementStyle(view, element);
-            int[] dims = ElkLayoutStrategy.defaultDimensions(element, style);
+            int[] dims = Shapes.defaultDimensions(element, style);
             int w = dims[0], h = dims[1];
 
             minX = Math.min(minX, ev.getX());

@@ -12,6 +12,18 @@ public class Shapes {
 
     static final String DEFAULT_FONT = "Tahoma, Verdana, Helvetica, Arial";
 
+    /** Returns [width, height] with shape-aware defaults matching the reference renderer. */
+    static int[] defaultDimensions(Element element, ElementStyle style) {
+        int w = style.getWidth()  != null ? style.getWidth()  : 0;
+        int h = style.getHeight() != null ? style.getHeight() : 0;
+        if (w > 0 && h > 0) return new int[]{w, h};
+        Shape shape = style.getShape() != null ? style.getShape() : Shape.Box;
+        if (shape == Shape.Person || shape == Shape.Robot) {
+            return new int[]{w > 0 ? w : 400, h > 0 ? h : 400};
+        }
+        return new int[]{w > 0 ? w : 450, h > 0 ? h : 300};
+    }
+
     static String render(ModelView view, Element element, ElementStyle style, int x, int y, int w, int h) {
         Shape shape = style.getShape() != null ? style.getShape() : Shape.Box;
         return switch (shape) {

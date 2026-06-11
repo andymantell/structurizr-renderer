@@ -15,7 +15,6 @@
     <maven.compiler.target>21</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <structurizr.version>4.1.0</structurizr.version>
-    <elk.version>0.10.0</elk.version>
     <batik.version>1.19</batik.version>
     <picocli.version>4.7.7</picocli.version>
   </properties>
@@ -33,24 +32,6 @@
       <groupId>com.structurizr</groupId>
       <artifactId>structurizr-autolayout</artifactId>
       <version>${structurizr.version}</version>
-    </dependency>
-
-    <!-- ELK pure-Java layout fallback -->
-    <dependency>
-      <groupId>org.eclipse.elk</groupId>
-      <artifactId>org.eclipse.elk.core</artifactId>
-      <version>${elk.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.eclipse.elk</groupId>
-      <artifactId>org.eclipse.elk.alg.layered</artifactId>
-      <version>${elk.version}</version>
-    </dependency>
-    <!-- ELK graph model -->
-    <dependency>
-      <groupId>org.eclipse.elk</groupId>
-      <artifactId>org.eclipse.elk.graph</artifactId>
-      <version>${elk.version}</version>
     </dependency>
 
     <!-- SVG -> PNG rasterizer -->

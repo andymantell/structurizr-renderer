@@ -3,12 +3,11 @@ package com.structurizr.renderer.layout;
 public class LayoutStrategyFactory {
 
     public static LayoutStrategy create() {
-        if (isDotAvailable()) {
-            System.err.println("[layout] Using Graphviz (dot)");
-            return new GraphvizLayoutStrategy();
+        if (!isDotAvailable()) {
+            throw new IllegalStateException(
+                "Graphviz 'dot' was not found on PATH. Install Graphviz and ensure 'dot' is available.");
         }
-        System.err.println("[layout] dot not found on PATH; using ELK (pure Java)");
-        return new ElkLayoutStrategy();
+        return new GraphvizLayoutStrategy();
     }
 
     private static boolean isDotAvailable() {
