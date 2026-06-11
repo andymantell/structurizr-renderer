@@ -34,7 +34,7 @@ class SvgDiagramExporterTest {
         // Containers, Components, SignIn (dynamic), DevelopmentDeployment, LiveDeployment
         assertEquals(7, diagrams.size(), "Expected 7 views from official big-bank fixture");
 
-        Path outDir = Path.of("target/test-output");
+        Path outDir = Path.of("target/test-output/big-bank");
         Files.createDirectories(outDir);
 
         for (Diagram d : diagrams) {
@@ -134,6 +134,49 @@ class SvgDiagramExporterTest {
     }
 
     @Test
+    void rendersKitchenSink() throws Exception {
+        File dsl = new File("src/test/resources/fixtures/kitchen-sink.dsl");
+        assertTrue(dsl.exists(), "Fixture not found: " + dsl.getAbsolutePath());
+
+        StructurizrDslParser parser = new StructurizrDslParser();
+        parser.parse(dsl);
+        Workspace workspace = parser.getWorkspace();
+
+        ThemeCache.loadThemes(workspace);
+        LayoutStrategyFactory.create().applyLayout(workspace);
+
+        Collection<Diagram> diagrams = new SvgDiagramExporter().export(workspace);
+        assertEquals(6, diagrams.size(),
+            "Expected Landscape, SystemContext, Containers, ApiComponents, Playback, ProductionDeployment");
+
+        Path outDir = Path.of("target/test-output/kitchen-sink");
+        Files.createDirectories(outDir);
+
+        for (Diagram d : diagrams) {
+            String svg = d.getDefinition();
+            assertTrue(svg.contains("<svg"), d.getKey() + ": should contain <svg>");
+            assertFalse(svg.matches("(?s).*M (\\d+\\.\\d) (\\d+\\.\\d) L \\1 \\2.*"),
+                d.getKey() + ": should not contain zero-length relationship paths");
+            Files.writeString(outDir.resolve(d.getKey() + ".svg"), svg);
+            System.out.println("Written: " + outDir.resolve(d.getKey() + ".svg"));
+        }
+
+        // Spot-checks for specific exercised features
+        String containers = diagrams.stream().filter(d -> d.getKey().equals("Containers"))
+            .findFirst().orElseThrow().getDefinition();
+        // Labels word-wrap across <text> elements, so check distinctive single words
+        assertTrue(containers.contains("Retries"), "Self-loop label missing");
+        assertTrue(containers.contains("Reads catalogue") && containers.contains("history to"),
+            "Parallel pair labels missing");
+        assertTrue(containers.contains(" Q "), "Curved (ML) relationship should render a quadratic path");
+
+        String deployment = diagrams.stream().filter(d -> d.getKey().equals("ProductionDeployment"))
+            .findFirst().orElseThrow().getDefinition();
+        assertTrue(deployment.contains("data:image/png;base64,"),
+            "AWS theme icons should be embedded in the deployment view");
+    }
+
+    @Test
     void rendersAwsAllServices() throws Exception {
         File dsl = new File("src/test/resources/fixtures/aws-all-services.dsl");
         assertTrue(dsl.exists(), "Fixture not found: " + dsl.getAbsolutePath());
@@ -150,7 +193,7 @@ class SvgDiagramExporterTest {
         Collection<Diagram> diagrams = new SvgDiagramExporter().export(workspace);
         assertEquals(1, diagrams.size(), "Expected 1 deployment view");
 
-        Path outDir = Path.of("target/test-output");
+        Path outDir = Path.of("target/test-output/aws-all-services");
         Files.createDirectories(outDir);
 
         Diagram d = diagrams.iterator().next();
