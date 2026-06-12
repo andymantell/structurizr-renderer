@@ -49,8 +49,8 @@ workspace "Streamflix" "Kitchen-sink fixture: an imagined video streaming platfo
         api -> db "Writes watch history to" "JDBC"
 
         api -> cache "Looks up sessions in"
-        api -> queue "Enqueues encoding & notification jobs on"
-        worker -> queue "Consumes jobs from"
+        api -> queue "Enqueues encoding & notification jobs on" "" "Queue-Flow"
+        worker -> queue "Consumes jobs from" "" "Queue-Flow"
 
         # Self-relationship
         worker -> worker "Retries failed encodes with exponential backoff"
@@ -214,6 +214,9 @@ workspace "Streamflix" "Kitchen-sink fixture: an imagined video streaming platfo
             }
             relationship "ML" {
                 routing Curved
+            }
+            relationship "Queue-Flow" {
+                routing Orthogonal
             }
         }
 

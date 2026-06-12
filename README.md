@@ -88,6 +88,11 @@ diagrams or more deterministic output:
   an element or boundary frame it isn't connected to — corner detours are
   inserted instead. Two-way and parallel relationship pairs render as separate
   kinked lines with staggered labels rather than overlapping.
+- **`routing Orthogonal` is honoured** with right-angled routes (L- and
+  Z-shapes chosen for shortest length and fewest bends, dodging foreign
+  boxes). Relationships in a two-way/parallel pair keep the kinked-pair
+  treatment; if no collision-free orthogonal route exists, the line falls
+  back to direct routing.
 - **Labels are placed by a collision engine.** Relationship labels repel each
   other and stay clear of element text, arrowheads (a label can never cover
   one), line crossings, boundary captions, and boundary frame edges (no
@@ -104,8 +109,6 @@ diagrams or more deterministic output:
 
 ### Not supported
 
-- `routing Orthogonal` falls back to a direct line (`Curved` and `Direct` are
-  honoured).
 - The `structurizr.boundaryPadding` / `groupPadding` / `deploymentNodePadding`
   view properties influence Graphviz spacing (inherited from the official
   layout) but are not yet read by this renderer's own boundary drawing.

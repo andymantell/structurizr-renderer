@@ -113,6 +113,40 @@ class SvgDiagramExporterTest {
     }
 
     @Test
+    void orthogonalRoutingUsesOnlyAxisAlignedSegments() throws Exception {
+        Workspace workspace = new Workspace("test", "");
+        var a = workspace.getModel().addSoftwareSystem("System A");
+        var b = workspace.getModel().addSoftwareSystem("System B");
+        var rel = a.uses(b, "Sends data to");
+        rel.addTags("Schematic");
+        workspace.getViews().getConfiguration().getStyles()
+            .addRelationshipStyle("Schematic").setRouting(com.structurizr.view.Routing.Orthogonal);
+
+        var view = workspace.getViews().createSystemLandscapeView("landscape", "");
+        view.addAllElements();
+        view.getElementView(a).setX(100);
+        view.getElementView(a).setY(100);
+        view.getElementView(b).setX(1200);
+        view.getElementView(b).setY(800);
+
+        Diagram d = new SvgDiagramExporter().export(workspace).iterator().next();
+        var m = java.util.regex.Pattern.compile("<path d=\"(M [^\"]+)\"[^>]*marker-end")
+            .matcher(d.getDefinition());
+        assertTrue(m.find(), "Relationship path missing");
+        var nums = java.util.regex.Pattern.compile("-?\\d+\\.?\\d*").matcher(m.group(1));
+        java.util.List<Double> v = new java.util.ArrayList<>();
+        while (nums.find()) v.add(Double.parseDouble(nums.group()));
+        assertTrue(v.size() >= 6, "Orthogonal route should have at least one bend");
+        for (int i = 0; i + 3 < v.size(); i += 2) {
+            boolean sameX = Math.abs(v.get(i) - v.get(i + 2)) < 0.01;
+            boolean sameY = Math.abs(v.get(i + 1) - v.get(i + 3)) < 0.01;
+            assertTrue(sameX || sameY,
+                "Orthogonal segment is diagonal: (" + v.get(i) + "," + v.get(i + 1)
+                    + ") -> (" + v.get(i + 2) + "," + v.get(i + 3) + ")");
+        }
+    }
+
+    @Test
     void negativeCoordinatesAreShiftedOntoCanvas() throws Exception {
         Workspace workspace = new Workspace("test", "");
         var a = workspace.getModel().addSoftwareSystem("System A");

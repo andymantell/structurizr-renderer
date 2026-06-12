@@ -222,7 +222,23 @@ public class Connectors {
             for (Vertex v : routingVertices) pathPoints.add(new double[]{v.getX(), v.getY()});
             pathPoints.add(p2);
 
-            if (!routingVertices.isEmpty()) {
+            List<double[]> orthogonal = routing == Routing.Orthogonal
+                ? orthogonalRoute(srcRect, dstRect, avoid) : null;
+
+            if (orthogonal != null) {
+                // Style intent wins over any Graphviz-supplied bend points
+                pathPoints.clear();
+                pathPoints.addAll(orthogonal);
+                StringBuilder path = new StringBuilder();
+                path.append(String.format("M %.1f %.1f", pathPoints.get(0)[0], pathPoints.get(0)[1]));
+                for (int i = 1; i < pathPoints.size(); i++) {
+                    path.append(String.format(" L %.1f %.1f", pathPoints.get(i)[0], pathPoints.get(i)[1]));
+                }
+                pathD = path.toString();
+                double[] lpos = pathPointAtFraction(pathPoints, position / 100.0);
+                labelX = lpos[0];
+                labelY = lpos[1] - 6;
+            } else if (!routingVertices.isEmpty()) {
                 if (avoid != null && !avoid.isEmpty()) {
                     insertDetours(pathPoints, avoid, 30);
                 }
@@ -308,6 +324,99 @@ public class Connectors {
                              descLines, techLines,
                              fontSize, techFontSize, descLineH, techLineH,
                              labelW, labelH);
+    }
+
+    /**
+     * Routes a relationship using only horizontal and vertical segments
+     * (Structurizr's {@code routing Orthogonal}). Candidates are generated —
+     * two L-shapes (one bend), two Z-shapes (two bends), and Z variants that
+     * jog around each foreign box — then validated against the avoid rects and
+     * the endpoints' own boxes, and scored by length plus a per-bend penalty.
+     * Returns null when no candidate is collision-free (caller falls back to
+     * a direct line with detours).
+     */
+    private static List<double[]> orthogonalRoute(double[] src, double[] dst, List<double[]> avoid) {
+        double scx = src[0] + src[2] / 2.0, scy = src[1] + src[3] / 2.0;
+        double dcx = dst[0] + dst[2] / 2.0, dcy = dst[1] + dst[3] / 2.0;
+
+        boolean dstRight = dcx >= scx, dstBelow = dcy >= scy;
+        double srcSideX = dstRight ? src[0] + src[2] : src[0]; // left/right edge of src
+        double srcSideY = dstBelow ? src[1] + src[3] : src[1]; // top/bottom edge of src
+        double dstSideX = dstRight ? dst[0] : dst[0] + dst[2]; // facing edge of dst
+        double dstSideY = dstBelow ? dst[1] : dst[1] + dst[3];
+
+        List<List<double[]>> candidates = new ArrayList<>();
+
+        // L: out the side, in the top/bottom
+        candidates.add(List.of(
+            new double[]{srcSideX, scy}, new double[]{dcx, scy}, new double[]{dcx, dstSideY}));
+        // L: out the top/bottom, in the side
+        candidates.add(List.of(
+            new double[]{scx, srcSideY}, new double[]{scx, dcy}, new double[]{dstSideX, dcy}));
+        // Z: horizontal-vertical-horizontal with the jog at given x
+        java.util.function.DoubleFunction<List<double[]>> zh = mx -> List.of(
+            new double[]{srcSideX, scy}, new double[]{mx, scy},
+            new double[]{mx, dcy}, new double[]{dstSideX, dcy});
+        // Z: vertical-horizontal-vertical with the jog at given y
+        java.util.function.DoubleFunction<List<double[]>> zv = my -> List.of(
+            new double[]{scx, srcSideY}, new double[]{scx, my},
+            new double[]{dcx, my}, new double[]{dcx, dstSideY});
+        candidates.add(zh.apply((srcSideX + dstSideX) / 2.0));
+        candidates.add(zv.apply((srcSideY + dstSideY) / 2.0));
+        if (avoid != null) {
+            for (double[] r : avoid) {
+                candidates.add(zh.apply(r[0] - 30));
+                candidates.add(zh.apply(r[0] + r[2] + 30));
+                candidates.add(zv.apply(r[1] - 30));
+                candidates.add(zv.apply(r[1] + r[3] + 30));
+            }
+        }
+
+        List<double[]> best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (List<double[]> cand : candidates) {
+            List<double[]> pts = dropZeroSegments(cand);
+            if (pts.size() < 2 || !orthogonalRouteIsClear(pts, src, dst, avoid)) continue;
+            double length = 0;
+            for (int i = 0; i < pts.size() - 1; i++) {
+                length += Math.abs(pts.get(i + 1)[0] - pts.get(i)[0])
+                        + Math.abs(pts.get(i + 1)[1] - pts.get(i)[1]);
+            }
+            double score = length + (pts.size() - 2) * 40;
+            if (score < bestScore) {
+                bestScore = score;
+                best = pts;
+            }
+        }
+        return best;
+    }
+
+    private static List<double[]> dropZeroSegments(List<double[]> pts) {
+        List<double[]> out = new ArrayList<>();
+        for (double[] p : pts) {
+            if (out.isEmpty() || Math.hypot(p[0] - out.get(out.size() - 1)[0],
+                                            p[1] - out.get(out.size() - 1)[1]) > 0.5) {
+                out.add(p);
+            }
+        }
+        return out;
+    }
+
+    private static boolean orthogonalRouteIsClear(List<double[]> pts, double[] src, double[] dst,
+                                                  List<double[]> avoid) {
+        for (int i = 0; i < pts.size() - 1; i++) {
+            double[] a = pts.get(i), b = pts.get(i + 1);
+            // Must not slice back through either endpoint box (segments touching an
+            // edge are fine — the intersect test runs against a slightly shrunk rect)
+            if (segmentIntersectsRect(a, b, src[0], src[1], src[2], src[3])) return false;
+            if (segmentIntersectsRect(a, b, dst[0], dst[1], dst[2], dst[3])) return false;
+            if (avoid != null) {
+                for (double[] r : avoid) {
+                    if (segmentIntersectsRect(a, b, r[0] - 8, r[1] - 8, r[2] + 16, r[3] + 16)) return false;
+                }
+            }
+        }
+        return true;
     }
 
     /**
