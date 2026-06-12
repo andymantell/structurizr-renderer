@@ -1,12 +1,14 @@
 package com.structurizr.renderer.layout;
 
 import com.structurizr.Workspace;
-import com.structurizr.autolayout.graphviz.GraphvizAutomaticLayout;
+import com.structurizr.autolayout.graphviz.DeclarationOrderGraphvizLayout;
 import com.structurizr.model.Relationship;
 import com.structurizr.view.AutomaticLayout;
 import com.structurizr.view.ModelView;
 import com.structurizr.view.RelationshipView;
 
+import java.io.File;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -34,7 +36,20 @@ public class GraphvizLayoutStrategy implements LayoutStrategy {
             }
         }
 
-        new GraphvizAutomaticLayout().apply(workspace);
+        // Declaration-order fork of GraphvizAutomaticLayout: Graphviz seeds its
+        // within-rank ordering from input order, and the stock exporter feeds it
+        // elements in lexicographic string-ID order ("10" before "2"). Feeding it
+        // true declaration order makes layouts track the DSL, like the web UI.
+        File workDir = Files.createTempDirectory("structurizr-renderer-layout").toFile();
+        try {
+            new DeclarationOrderGraphvizLayout(workDir).apply(workspace);
+        } finally {
+            File[] files = workDir.listFiles();
+            if (files != null) {
+                for (File f : files) f.delete();
+            }
+            workDir.delete();
+        }
 
         // Graphviz never interleaves clusters and ranks topology over proximity,
         // which can strand lightly-connected units far from their partners; let
