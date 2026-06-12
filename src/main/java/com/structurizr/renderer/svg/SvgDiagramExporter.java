@@ -70,10 +70,12 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         this.boundaryLabelObstacles = new ArrayList<>();
         this.boundaryFrames = new ArrayList<>();
         this.boundaryRects = new java.util.HashMap<>();
-        this.actualMinX = 0;
-        this.actualMinY = 0;
-        this.actualMaxX = 0;
-        this.actualMaxY = 0;
+        // Sentinels so the canvas crops to the actual drawn extent — content from
+        // Graphviz starts at its margin (~400px in), not at the origin
+        this.actualMinX = Integer.MAX_VALUE;
+        this.actualMinY = Integer.MAX_VALUE;
+        this.actualMaxX = Integer.MIN_VALUE;
+        this.actualMaxY = Integer.MIN_VALUE;
 
         String bg = "#ffffff";
 
@@ -869,6 +871,10 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         // Replace placeholder dimensions with the actual bounds tracked during rendering.
         // The translate shifts content so the minimum coordinate (possibly negative with
         // manual layouts) lands at PADDING from the canvas edge.
+        if (actualMinX > actualMaxX) { // empty view: nothing was drawn
+            actualMinX = actualMinY = 0;
+            actualMaxX = actualMaxY = 0;
+        }
         int cw = (actualMaxX - actualMinX) + PADDING * 2;
         int ch = (actualMaxY - actualMinY) + PADDING * 2;
         String fixed = definition
