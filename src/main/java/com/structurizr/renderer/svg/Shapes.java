@@ -13,15 +13,36 @@ public class Shapes {
     static final String DEFAULT_FONT = BundledFonts.FAMILY + ", Helvetica, Arial, sans-serif";
 
     /** Returns [width, height] with shape-aware defaults matching the reference renderer. */
-    static int[] defaultDimensions(Element element, ElementStyle style) {
+    private static int[] defaultDimensions(ElementStyle style, Shape shape) {
         int w = style.getWidth()  != null ? style.getWidth()  : 0;
         int h = style.getHeight() != null ? style.getHeight() : 0;
         if (w > 0 && h > 0) return new int[]{w, h};
-        Shape shape = style.getShape() != null ? style.getShape() : Shape.Box;
         if (shape == Shape.Person || shape == Shape.Robot) {
             return new int[]{w > 0 ? w : 400, h > 0 ? h : 400};
         }
         return new int[]{w > 0 ? w : 450, h > 0 ? h : 300};
+    }
+
+    /**
+     * The shape to draw. Structurizr's merged style reports Box whenever no
+     * style declares a shape, which would render an unstyled Person as a plain
+     * box — default people to the person figure instead. Any shape declared by
+     * a workspace or theme style for one of the element's tags still wins.
+     */
+    static Shape effectiveShape(ModelView view, Element element, ElementStyle style) {
+        if (element instanceof Person && !shapeDeclaredForTags(view, element)) {
+            return Shape.Person;
+        }
+        return style.getShape() != null ? style.getShape() : Shape.Box;
+    }
+
+    private static boolean shapeDeclaredForTags(ModelView view, Element element) {
+        var styles = view.getViewSet().getConfiguration().getStyles();
+        for (String tag : element.getTagsAsSet()) {
+            ElementStyle tagStyle = styles.findElementStyle(tag);
+            if (tagStyle != null && tagStyle.getShape() != null) return true;
+        }
+        return false;
     }
 
     /**
@@ -30,9 +51,9 @@ public class Shapes {
      * on the laid-out box so the element keeps the centre the layout gave it.
      */
     public static int[] elementRect(ModelView view, Element element, ElementStyle style, int evX, int evY) {
-        int[] dims = defaultDimensions(element, style);
+        Shape shape = effectiveShape(view, element, style);
+        int[] dims = defaultDimensions(style, shape);
         int w = dims[0], h = dims[1];
-        Shape shape = style.getShape() != null ? style.getShape() : Shape.Box;
 
         int textW = shape == Shape.Pipe ? w - 2 * Math.min(60, w / 5) : w;
         int textH = layoutText(view, element, style, textW).height();
@@ -57,7 +78,7 @@ public class Shapes {
     }
 
     static String render(ModelView view, Element element, ElementStyle style, int x, int y, int w, int h) {
-        Shape shape = style.getShape() != null ? style.getShape() : Shape.Box;
+        Shape shape = effectiveShape(view, element, style);
         return switch (shape) {
             case Box          -> renderBox(view, element, style, x, y, w, h, 3);
             case RoundedBox   -> renderBox(view, element, style, x, y, w, h, 10);
