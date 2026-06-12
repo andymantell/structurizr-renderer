@@ -644,6 +644,15 @@ public class Shapes {
                 while (cut > 1 && TextMetrics.width(word.substring(0, cut), fontSize, bold) > maxWidth) {
                     cut--;
                 }
+                // Prefer breaking after a separator inside the token (FIRE_AND_FORGET,
+                // some-long-identifier, path/segments) over a mid-word cut
+                for (int i = cut - 1; i >= 2; i--) {
+                    char c = word.charAt(i);
+                    if (c == '_' || c == '-' || c == '/' || c == '.') {
+                        cut = i + 1;
+                        break;
+                    }
+                }
                 if (line.length() > 0) {
                     lines.add(line.toString());
                     line.setLength(0);
