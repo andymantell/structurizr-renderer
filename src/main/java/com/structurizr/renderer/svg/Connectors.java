@@ -14,8 +14,11 @@ public class Connectors {
         String fontCss = BundledFonts.fontFaceCss();
         return "<defs>\n"
             + (fontCss.isEmpty() ? "" : "<style type=\"text/css\">\n" + fontCss + "\n</style>\n")
-            // Sleek chevron arrowhead with a slightly concave back
+            // Sleek chevron arrowhead with a slightly concave back; the white-stroked
+            // copy underneath keeps it legible over box edges and other lines
             + "<marker id=\"arrow\" orient=\"auto\" overflow=\"visible\" markerUnits=\"userSpaceOnUse\">"
+            + "<path transform=\"rotate(180)\" d=\"M 0 0 L 18 -7 L 14 0 L 18 7 Z\""
+            + " fill=\"#ffffff\" stroke=\"#ffffff\" stroke-width=\"2.5\" stroke-linejoin=\"round\"/>"
             + "<path transform=\"rotate(180)\" d=\"M 0 0 L 18 -7 L 14 0 L 18 7 Z\" fill=\"#444444\"/>"
             + "</marker>\n"
             // Soft drop shadow, spelled out long-hand for Batik compatibility
@@ -397,9 +400,14 @@ public class Connectors {
 
     /** Render only the path line (arrow) for one relationship. */
     static String renderPath(LabelInfo li) {
+        // White casing first (same dash pattern, 1px wider each side) so the line
+        // stays legible where it crosses box edges, shadows and other lines.
         return String.format(
+            "<path d=\"%s\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"%d\"%s " +
+            "stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n" +
             "<path d=\"%s\" fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"%s " +
             "stroke-linecap=\"round\" stroke-linejoin=\"round\" marker-end=\"url(#arrow)\"/>\n",
+            li.pathD, li.thickness + 2, li.dashAttr,
             li.pathD, li.color, li.thickness, li.dashAttr);
     }
 
