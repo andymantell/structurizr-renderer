@@ -707,11 +707,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
     @Override
     protected void startSoftwareSystemBoundary(ModelView view, SoftwareSystem softwareSystem,
                                                 IndentingWriter writer) {
-        ElementStyle style = findElementStyle(view, softwareSystem);
-        String bg = style.getBackground() != null ? style.getBackground() : "#1168bd";
-        String stroke = Shapes.shadeColor(bg, -10);
-        boundaryStack.push(new BoundaryState(softwareSystem.getName(), BoundaryType.SoftwareSystem,
-                                              stroke, "", softwareSystem.getId()));
+        boundaryStack.push(elementBoundaryState(view, softwareSystem,
+            BoundaryType.SoftwareSystem, "SoftwareSystem", "#1168bd"));
     }
 
     @Override
@@ -723,11 +720,8 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
     @Override
     protected void startContainerBoundary(ModelView view, Container container, IndentingWriter writer) {
-        ElementStyle style = findElementStyle(view, container);
-        String bg = style.getBackground() != null ? style.getBackground() : "#438dd5";
-        String stroke = Shapes.shadeColor(bg, -10);
-        boundaryStack.push(new BoundaryState(container.getName(), BoundaryType.Container,
-                                              stroke, "", container.getId()));
+        boundaryStack.push(elementBoundaryState(view, container,
+            BoundaryType.Container, "Container", "#438dd5"));
     }
 
     @Override
@@ -744,12 +738,110 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         String strokeColor = style.getStroke() != null ? style.getStroke()
                            : style.getColor()  != null ? style.getColor()
                            : "#444444";
+        int strokeWidth = clampStrokeWidth(style.getStrokeWidth());
         String iconDataUri = null;
         if (style.getIcon() != null && !style.getIcon().isBlank()) {
             iconDataUri = IconCache.toDataUri(style.getIcon());
         }
         boundaryStack.push(new BoundaryState(deploymentNode.getName(), BoundaryType.DeploymentNode,
-                                              strokeColor, "", deploymentNode.getId(), iconDataUri));
+                                              strokeColor, dashArrayFor(style.getBorder(), strokeWidth),
+                                              deploymentNode.getId(), iconDataUri,
+                                              strokeWidth, null, 14));
+    }
+
+    /**
+     * Builds the boundary state for a software system / container boundary using
+     * the same style resolution as the Structurizr web renderer: the element's
+     * own resolved style is the base, and any property explicitly set by an
+     * {@code element "Boundary"} or {@code element "Boundary:<Type>"} style
+     * overrides it (stroke, strokeWidth, color, border, shape, icon).
+     */
+    private BoundaryState elementBoundaryState(ModelView view, Element element,
+                                               BoundaryType type, String typeName, String defaultBg) {
+        ElementStyle base = findElementStyle(view, element);
+        BoundaryOverride override = boundaryStyleOverride(view, typeName);
+
+        String bg = base.getBackground() != null ? base.getBackground() : defaultBg;
+        String stroke = override.stroke != null ? override.stroke
+                      : base.getStroke() != null ? base.getStroke()
+                      : Shapes.shadeColor(bg, -10);
+
+        Integer swValue = override.strokeWidth != null ? override.strokeWidth
+                        : base.getStrokeWidth();
+        int strokeWidth = clampStrokeWidth(swValue);
+
+        // Label text colour: boundary style wins; else the element's colour —
+        // unless that matches the background, in which case the stroke is used
+        // (same fallback as the web renderer).
+        String textColor = override.color != null ? override.color
+                         : base.getColor() != null && !base.getColor().equalsIgnoreCase(bg)
+                             ? base.getColor()
+                         : stroke;
+
+        Border border = override.border != null ? override.border : base.getBorder();
+
+        Shape shape = override.shape != null ? override.shape : base.getShape();
+        int cornerRadius = shapeHasRoundedCorners(shape) ? 20 : 0;
+
+        String icon = override.icon != null ? override.icon : base.getIcon();
+        String iconDataUri = (icon != null && !icon.isBlank()) ? IconCache.toDataUri(icon) : null;
+
+        return new BoundaryState(element.getName(), type, stroke,
+                                 dashArrayFor(border, strokeWidth), element.getId(), iconDataUri,
+                                 strokeWidth, textColor, cornerRadius);
+    }
+
+    /**
+     * Merges every {@code element "Boundary"} and {@code element "Boundary:<Type>"}
+     * style defined in the workspace (themes included — they are inlined at load
+     * time), keeping only explicitly set properties. Mirrors the web renderer,
+     * which resolves these tags against a pseudo-element and overrides the
+     * element's style property-by-property.
+     */
+    private BoundaryOverride boundaryStyleOverride(ModelView view, String typeName) {
+        BoundaryOverride merged = new BoundaryOverride();
+        for (String tag : new String[]{"Boundary", "Boundary:" + typeName}) {
+            for (ElementStyle s : view.getViewSet().getConfiguration().getStyles().getElements()) {
+                if (!tag.equals(s.getTag())) continue;
+                if (s.getStroke()      != null) merged.stroke      = s.getStroke();
+                if (s.getStrokeWidth() != null) merged.strokeWidth = s.getStrokeWidth();
+                if (s.getColor()       != null) merged.color       = s.getColor();
+                if (s.getBorder()      != null) merged.border      = s.getBorder();
+                if (s.getShape()       != null) merged.shape       = s.getShape();
+                if (s.getIcon()        != null) merged.icon        = s.getIcon();
+            }
+        }
+        return merged;
+    }
+
+    /** Explicitly-set properties of "Boundary"/"Boundary:<Type>" styles; null = not set. */
+    private static class BoundaryOverride {
+        String  stroke;
+        Integer strokeWidth;
+        String  color;
+        Border  border;
+        Shape   shape;
+        String  icon;
+    }
+
+    private static int clampStrokeWidth(Integer strokeWidth) {
+        if (strokeWidth == null) return 2;
+        return Math.max(1, Math.min(10, strokeWidth));
+    }
+
+    private static String dashArrayFor(Border border, int strokeWidth) {
+        if (border == Border.Dashed) return (strokeWidth * 4) + "," + (strokeWidth * 4);
+        if (border == Border.Dotted) return strokeWidth + "," + (strokeWidth * 2);
+        return "";
+    }
+
+    private static boolean shapeHasRoundedCorners(Shape shape) {
+        return shape == Shape.RoundedBox
+            || shape == Shape.Folder
+            || shape == Shape.WebBrowser
+            || shape == Shape.Window
+            || shape == Shape.MobileDevicePortrait
+            || shape == Shape.MobileDeviceLandscape;
     }
 
     @Override
@@ -822,10 +914,11 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
 
         String dashAttr = dashArray.isEmpty() ? "" : String.format(" stroke-dasharray=\"%s\"", dashArray);
         writer.writeLine(String.format(
-            "<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"14\" " +
-            "fill=\"none\" stroke=\"%s\" stroke-width=\"2\"%s/>",
-            bx, by, bw, bh, strokeColor, dashAttr));
+            "<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"%d\" " +
+            "fill=\"none\" stroke=\"%s\" stroke-width=\"%d\"%s/>",
+            bx, by, bw, bh, state.cornerRadius, strokeColor, state.strokeWidth, dashAttr));
 
+        String labelColor = state.textColor != null ? state.textColor : strokeColor;
         int labelTextX;
         if (state.iconDataUri != null) {
             // Small icon to the left of the label at the bottom of the boundary box
@@ -836,19 +929,14 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
                 "<image x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" href=\"%s\" xlink:href=\"%s\"/>",
                 iconX, iconY, iconSize, iconSize, state.iconDataUri, state.iconDataUri));
             labelTextX = iconX + iconSize + 6;
-            writer.writeLine(String.format(
-                "<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"%d\" " +
-                "font-weight=\"bold\" fill=\"%s\">%s</text>",
-                labelTextX, by + bh - 15, Shapes.DEFAULT_FONT, fontSize,
-                strokeColor, Shapes.htmlEscape(state.label)));
         } else {
             labelTextX = bx + 15;
-            writer.writeLine(String.format(
-                "<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"%d\" " +
-                "font-weight=\"bold\" fill=\"%s\">%s</text>",
-                labelTextX, by + bh - 15, Shapes.DEFAULT_FONT, fontSize,
-                strokeColor, Shapes.htmlEscape(state.label)));
         }
+        writer.writeLine(String.format(
+            "<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"%d\" " +
+            "font-weight=\"bold\" fill=\"%s\">%s</text>",
+            labelTextX, by + bh - 15, Shapes.DEFAULT_FONT, fontSize,
+            labelColor, Shapes.htmlEscape(state.label)));
 
         // Record boundary label text area as a static obstacle so relationship labels
         // are repelled away from it and don't paint over the boundary label text.
@@ -898,26 +986,29 @@ public class SvgDiagramExporter extends AbstractDiagramExporter {
         final String dashArray;
         final String iconDataUri;  // nullable; base64 data URI for boundary label icon
         final String elementId;    // nullable; id of the model element this boundary represents
+        final int strokeWidth;
+        final String textColor;    // nullable; falls back to strokeColor
+        final int cornerRadius;
         final List<String> elementIds = new ArrayList<>();
         int childMinX = Integer.MAX_VALUE, childMinY = Integer.MAX_VALUE;
         int childMaxX = Integer.MIN_VALUE, childMaxY = Integer.MIN_VALUE;
 
         BoundaryState(String label, BoundaryType type, String strokeColor, String dashArray) {
-            this(label, type, strokeColor, dashArray, null, null);
-        }
-
-        BoundaryState(String label, BoundaryType type, String strokeColor, String dashArray, String elementId) {
-            this(label, type, strokeColor, dashArray, elementId, null);
+            this(label, type, strokeColor, dashArray, null, null, 2, null, 14);
         }
 
         BoundaryState(String label, BoundaryType type, String strokeColor, String dashArray,
-                      String elementId, String iconDataUri) {
-            this.label       = label;
-            this.type        = type;
-            this.strokeColor = strokeColor;
-            this.dashArray   = dashArray;
-            this.elementId   = elementId;
-            this.iconDataUri = iconDataUri;
+                      String elementId, String iconDataUri,
+                      int strokeWidth, String textColor, int cornerRadius) {
+            this.label        = label;
+            this.type         = type;
+            this.strokeColor  = strokeColor;
+            this.dashArray    = dashArray;
+            this.elementId    = elementId;
+            this.iconDataUri  = iconDataUri;
+            this.strokeWidth  = strokeWidth;
+            this.textColor    = textColor;
+            this.cornerRadius = cornerRadius;
         }
 
         void addElement(String id) { elementIds.add(id); }

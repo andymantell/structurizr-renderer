@@ -24,6 +24,20 @@ public class GraphvizLayoutStrategy implements LayoutStrategy {
 
     @Override
     public void applyLayout(Workspace workspace) throws Exception {
+        // Unlike the Structurizr web editor — where a view with no autoLayout can
+        // still be arranged by hand and its coordinates saved — this renderer has
+        // no drag-to-position step, and the DSL alone carries no element
+        // coordinates. A view left without autoLayout would otherwise render with
+        // every element stacked at the origin, so default it on here.
+        for (ModelView view : allModelViews(workspace)) {
+            if (view.getAutomaticLayout() == null) {
+                // Explicit Graphviz overload: the no-arg enableAutomaticLayout()
+                // defaults to Implementation.Dagre, which the rest of this class
+                // never engages (everything below gates on Graphviz).
+                view.enableAutomaticLayout(AutomaticLayout.RankDirection.TopBottom, 300, 300);
+            }
+        }
+
         for (ModelView view : allModelViews(workspace)) {
             AutomaticLayout al = view.getAutomaticLayout();
             if (al != null

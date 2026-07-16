@@ -31,6 +31,15 @@ java -jar structurizr-renderer.jar [OPTIONS] <path/to/workspace.dsl>
 | `-h`, `--help` | — | Show help and exit |
 | `-V`, `--version` | — | Print version and exit |
 
+### Layout
+
+Views are laid out with Graphviz whether or not the DSL contains an
+`autoLayout` line — the DSL grammar has no syntax for element positions, so
+there is nothing else to go on. This matches the Structurizr playground and
+Lite, which also lay out position-less views on load. An explicit
+`autoLayout` is honoured as given; without one, the stock defaults apply
+(top-to-bottom, 300/300 separations).
+
 ### Examples
 
 Render all views to SVG alongside the DSL file:
