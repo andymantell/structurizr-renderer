@@ -31,6 +31,15 @@ java -jar structurizr-renderer.jar [OPTIONS] <path/to/workspace.dsl>
 | `-h`, `--help` | — | Show help and exit |
 | `-V`, `--version` | — | Print version and exit |
 
+### Layout
+
+Views are laid out with Graphviz whether or not the DSL contains an
+`autoLayout` line — the DSL grammar has no syntax for element positions, so
+there is nothing else to go on. This matches the Structurizr playground and
+Lite, which also lay out position-less views on load. An explicit
+`autoLayout` is honoured as given; without one, the stock defaults apply
+(top-to-bottom, 300/300 separations).
+
 ### Examples
 
 Render all views to SVG alongside the DSL file:
@@ -57,15 +66,6 @@ diagrams or more deterministic output:
 
 ### Layout
 
-- **Automatic layout applies even when the DSL doesn't request it.** A view
-  with no `autoLayout` still gets Graphviz layout (top-to-bottom, stock
-  separations). The DSL grammar has no syntax for element positions at all —
-  those live only in a workspace's separate JSON, alongside whatever the DSL
-  produces — so a diagram pasted or exported as DSL text (e.g. from the
-  Structurizr playground) never carries positions, laid-out or not. Rather
-  than place unpositioned elements at the origin, this renderer lays every
-  view out by default. An explicit `autoLayout` in the DSL is still honoured
-  as given.
 - **Declaration order matters.** Graphviz is fed elements and relationships in
   the order they are declared in the DSL. (Stock Structurizr sorts by element
   ID *lexicographically* — `"10"` before `"2"` — so larger models reach the
