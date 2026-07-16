@@ -59,11 +59,13 @@ diagrams or more deterministic output:
 
 - **Automatic layout applies even when the DSL doesn't request it.** A view
   with no `autoLayout` still gets Graphviz layout (top-to-bottom, stock
-  separations). Stock Structurizr leaves such views for a human to drag into
-  place in the web editor and would otherwise scatter them at random
-  coordinates; this renderer has no drag step, so it lays every view out by
-  default instead. An explicit `autoLayout` in the DSL is still honoured as
-  given.
+  separations). The DSL grammar has no syntax for element positions at all —
+  those live only in a workspace's separate JSON, alongside whatever the DSL
+  produces — so a diagram pasted or exported as DSL text (e.g. from the
+  Structurizr playground) never carries positions, laid-out or not. Rather
+  than place unpositioned elements at the origin, this renderer lays every
+  view out by default. An explicit `autoLayout` in the DSL is still honoured
+  as given.
 - **Declaration order matters.** Graphviz is fed elements and relationships in
   the order they are declared in the DSL. (Stock Structurizr sorts by element
   ID *lexicographically* — `"10"` before `"2"` — so larger models reach the
